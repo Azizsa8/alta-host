@@ -84,7 +84,16 @@ export interface DailyReport {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers: {
+      "Content-Type": "application/json",
+      // Harmless no-op against a real API; needed when VITE_API_BASE_URL
+      // points at a localtunnel.me origin (used for standalone preview
+      // deploys) — localtunnel otherwise serves an HTML "click to
+      // continue" interstitial to browser-originated requests instead of
+      // proxying them, which silently breaks every fetch call here.
+      "Bypass-Tunnel-Reminder": "true",
+      ...init?.headers,
+    },
   });
   if (!res.ok) {
     const body = await res.text();

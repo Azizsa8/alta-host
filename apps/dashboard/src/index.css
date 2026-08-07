@@ -94,6 +94,9 @@ main.content .sub{color:var(--ink-faint); font-size:0.92rem; margin-bottom:28px;
 .chip.in_progress{background:var(--accent-soft); color:var(--accent-ink);}
 .chip.done{background:var(--success-soft); color:var(--success);}
 .chip.urgent{background:var(--danger-soft); color:var(--danger);}
+.chip.age-ok{background:var(--surface-alt); color:var(--ink-faint);}
+.chip.age-warn{background:var(--amber-soft); color:var(--amber);}
+.chip.age-danger{background:var(--danger-soft); color:var(--danger);}
 
 .board{display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:8px;}
 .board-col h3{font-size:0.82rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-faint); margin:0 0 10px;}
@@ -103,8 +106,11 @@ main.content .sub{color:var(--ink-faint); font-size:0.92rem; margin-bottom:28px;
   background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
   padding:13px 14px; margin-bottom:10px;
 }
+.ticket-card.stale-warn{border-color:var(--amber);}
+.ticket-card.stale-danger{border-color:var(--danger);}
 .ticket-card .top{display:flex; justify-content:space-between; align-items:start; gap:8px; margin-bottom:6px;}
 .ticket-card .summary{font-size:0.9rem; font-weight:600; margin:0 0 4px;}
+.ticket-card .badges{display:flex; align-items:center; gap:4px; flex-shrink:0;}
 .ticket-card .meta{font-size:0.78rem; color:var(--ink-faint); font-family:var(--font-mono);}
 .ticket-card .actions{display:flex; gap:6px; margin-top:10px;}
 .ticket-card .actions button{

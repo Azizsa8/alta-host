@@ -135,6 +135,20 @@ repeated AC complaints → maintenance recommendation).
 - Given 2 or more maintenance tickets whose description mentions the same keyword (e.g. "AC" / "مكيف"), when the report is generated, then it includes a recommendation naming that pattern — not just a count.
 - Given zero tickets in the reporting window, when the report is generated, then it returns zero-value metrics and no recommendations, not an error.
 
+### FR-9 — Guest Consent Capture (first WhatsApp contact)
+
+WhatsApp-first means the first inbound message from a new `whatsappId` is also the first moment
+ALTA can capture consent for processing and storing that guest's message content, per Saudi PDPL
+(§7.7). Consent capture is inline with the FR-1 guest/conversation creation flow — it does not gate
+the auto-acknowledgement, but it must be recorded before any agent processes the message content
+beyond the initial log-and-acknowledge step.
+
+**Acceptance criteria**
+- Given a `whatsappId` that has never messaged this property, when the new `Guest` and `Conversation` are created (FR-1), then a consent record is created alongside them, and the guest's acknowledgement includes a brief, plain-language PDPL notice (what data is stored, why, and how to opt out) in the guest's message language.
+- Given a `whatsappId` with no recorded consent, when a Reception or Guest Service agent (FR-3, FR-4) would draft a reply referencing stored guest or reservation data, then processing still proceeds — consent is not a hard gate on Phase 1 functionality — but the missing-consent state is visible on the guest record for staff and for the Executive Daily Report (FR-8).
+- Given a guest who has previously messaged and already has a recorded consent, when a new message arrives, then no duplicate consent record or notice is created.
+- Given a guest who replies with an opt-out keyword (e.g. "STOP" / "توقف"), when processed, then the guest's consent status is set to withdrawn and this transition is logged to `AgentAction` (§7.4) for audit.
+
 ## 7. Non-Functional Requirements
 
 | # | Requirement |
@@ -145,12 +159,15 @@ repeated AC complaints → maintenance recommendation).
 | 7.4 | All agent actions (ticket creation, PMS calls, review decisions) are logged to `AgentAction` for audit |
 | 7.5 | The webhook accepts the real WhatsApp Cloud API payload shape today, even though no token is configured in dev |
 | 7.6 | `AUTO_APPROVE_INTENTS` (env, comma-separated intent types) lets specific intent types skip the review queue — the mechanism for the Days 61–90 autonomy graduation, unused (empty) by default |
+| 7.7 | Guest message content and any PII collected via WhatsApp are processed and stored in a way that satisfies Saudi PDPL (Personal Data Protection Law) — in-Kingdom hosting, or an equivalent compliant path. If intent extraction or drafting comes to call an LLM, that call is routed through a self-hosted, in-Kingdom-hostable inference layer (e.g. LocalAI — see `docs/OSS_OPTIONS.md`'s Layer 03/04 entry) rather than a third-party hosted API, to avoid guest message content leaving the property's infrastructure. Data residency and processing-location decisions are confirmed before Phase 2 pilot deployment, not retrofitted after launch (matches `docs/PROJECT_PLAN.md` §1 principle 4 and its §5 risk register entry "PDPL / data residency misstep") |
 
 ## 8. Data Model
 
-Existing Prisma schema (`apps/api/prisma/schema.prisma`) plus one addition this PRD requires:
+Existing Prisma schema (`apps/api/prisma/schema.prisma`) plus two additions this PRD requires:
 
 **`ReviewItem`** (new) — `id, intentId (unique), department, draftReply, pendingAction (JSON), status (pending|approved|rejected), reviewedBy?, createdAt, reviewedAt?`
+
+**`ConsentRecord`** (new, FR-9 / §7.7) — `id, guestId (unique), status (granted|withdrawn), capturedAt, withdrawnAt?, noticeLanguage`
 
 All other entities (`Property, Guest, Reservation, StaffMember, Conversation, Message, Intent,
 Ticket, AgentAction, Review`) are unchanged from the existing implementation.
@@ -181,6 +198,7 @@ service replies reviewed during the pilot window with zero unreviewed sends.
 - A single pilot property is sufficient for Phase 1 validation (matches Blueprint's "single hotel" pilot).
 - Real PMS and WhatsApp credentials are Phase 1 *integration* work, not Phase 1 *product* work — the interfaces are complete; the vendor-specific implementations are not.
 - Arabic dialect NLU accuracy is the highest-risk item and is explicitly out of scope for automated correctness in Phase 1 (rule-based engine is a placeholder, not a claim of production NLU quality).
+- PDPL data residency (§7.7) and the consent mechanism it requires (FR-9) are treated as Phase 1 product requirements, not a pre-launch checklist item, per `docs/PROJECT_PLAN.md`'s engagement principle 4 ("Compliance and security are Phase 0 work, not a pre-launch checklist item") and its risk register entry for PDPL / data residency misstep.
 
 ## 12. Out of Scope
 

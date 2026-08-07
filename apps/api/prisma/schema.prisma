@@ -1,0 +1,145 @@
+// ALTA MVP data model — mirrors the core entity set from the architecture doc.
+// SQLite for zero-config local dev; swap the datasource to postgresql for prod.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Property {
+  id          String   @id @default(uuid())
+  name        String
+  pmsType     String   @default("mock")
+  createdAt   DateTime @default(now())
+
+  guests        Guest[]
+  staff         StaffMember[]
+  reservations  Reservation[]
+  reviews       Review[]
+}
+
+model Guest {
+  id                String   @id @default(uuid())
+  propertyId        String
+  property          Property @relation(fields: [propertyId], references: [id])
+  whatsappId        String   @unique
+  name              String?
+  preferredDialect  String   @default("saudi")
+  createdAt         DateTime @default(now())
+
+  reservations   Reservation[]
+  conversations  Conversation[]
+}
+
+model Reservation {
+  id          String   @id @default(uuid())
+  guestId     String
+  guest       Guest    @relation(fields: [guestId], references: [id])
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id])
+  roomNumber  String
+  checkIn     DateTime
+  checkOut    DateTime
+  status      String   @default("confirmed")
+}
+
+model StaffMember {
+  id         String   @id @default(uuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id])
+  name       String
+  role       String   // reception | housekeeping | maintenance | manager
+  onShift    Boolean  @default(true)
+  whatsappId String?
+
+  tickets Ticket[]
+}
+
+model Conversation {
+  id        String   @id @default(uuid())
+  guestId   String
+  guest     Guest    @relation(fields: [guestId], references: [id])
+  channel   String   @default("whatsapp")
+  createdAt DateTime @default(now())
+
+  messages Message[]
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  direction      String       // inbound | outbound
+  rawText        String
+  mediaType      String       @default("text") // text | voice
+  createdAt      DateTime     @default(now())
+
+  intents Intent[]
+}
+
+model Intent {
+  id         String   @id @default(uuid())
+  messageId  String
+  message    Message  @relation(fields: [messageId], references: [id])
+  type       String   // e.g. booking.extend_stay, housekeeping.clean_room
+  params     String   @default("{}") // JSON-encoded
+  confidence Float    @default(1.0)
+  sentiment  String   @default("neutral")
+  urgency    String   @default("normal")
+  createdAt  DateTime @default(now())
+
+  ticket     Ticket?
+  reviewItem ReviewItem?
+}
+
+model Ticket {
+  id               String       @id @default(uuid())
+  intentId         String       @unique
+  intent           Intent       @relation(fields: [intentId], references: [id])
+  department       String       // reception | housekeeping | maintenance | guest_service
+  status           String       @default("open") // open | in_progress | done
+  assignedStaffId  String?
+  assignedStaff    StaffMember? @relation(fields: [assignedStaffId], references: [id])
+  summary          String
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  actions AgentAction[]
+}
+
+model AgentAction {
+  id        String   @id @default(uuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  agent     String   // reception | guest_service | housekeeping | executive_manager
+  action    String
+  detail    String   @default("")
+  createdAt DateTime @default(now())
+}
+
+model ReviewItem {
+  id           String    @id @default(uuid())
+  intentId     String    @unique
+  intent       Intent    @relation(fields: [intentId], references: [id])
+  department   String    // reception | guest_service
+  draftReply   String
+  pendingAction String   // JSON-encoded {type, params}
+  status       String    @default("pending") // pending | approved | rejected
+  reviewedBy   String?
+  createdAt    DateTime  @default(now())
+  reviewedAt   DateTime?
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id])
+  source     String   @default("google")
+  rating     Int
+  text       String
+  createdAt  DateTime @default(now())
+}

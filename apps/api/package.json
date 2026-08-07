@@ -10,6 +10,7 @@
     "db:migrate": "prisma migrate dev --name init",
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
+    "verify:tenant-isolation": "tsx scripts/verify-tenant-isolation.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

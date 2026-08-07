@@ -1,4 +1,9 @@
-const BASE = "/api";
+// Local dev and the Caddy-fronted docker-compose deploy both proxy /api on
+// the same origin as the dashboard itself, so a relative path is correct
+// there. A standalone static host (e.g. Vercel) has no such proxy — set
+// VITE_API_BASE_URL to an absolute URL (e.g. a tunnel or a deployed API's
+// origin) at build time to point the dashboard at it instead.
+const BASE = `${import.meta.env.VITE_API_BASE_URL ?? ""}/api`;
 
 export interface DispatchOutcome {
   intentType: string;

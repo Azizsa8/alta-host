@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-alta}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-alta}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - alta-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-alta}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-alta}:${POSTGRES_PASSWORD:-devpassword}@db:5432/${POSTGRES_DB:-alta}
+      PORT: 4317
+      WHATSAPP_CLOUD_API_TOKEN: ${WHATSAPP_CLOUD_API_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-alta-dev-verify-token}
+      PMS_PROVIDER: ${PMS_PROVIDER:-mock}
+      AUTO_APPROVE_INTENTS: ${AUTO_APPROVE_INTENTS:-}
+    expose:
+      - "4317"
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-http://:80}
+    ports:
+      - "${WEB_PORT:-8080}:80"
+      - "${WEB_TLS_PORT:-8443}:443"
+
+volumes:
+  alta-db-data:

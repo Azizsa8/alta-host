@@ -1,12 +1,13 @@
 // ALTA MVP data model — mirrors the core entity set from the architecture doc.
-// SQLite for zero-config local dev; swap the datasource to postgresql for prod.
+// Postgres everywhere (dev via docker-compose's db service, prod the same
+// image) so dev never drifts from what's actually deployed.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

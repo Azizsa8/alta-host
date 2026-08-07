@@ -5,23 +5,48 @@ flows through multi-intent extraction; low-risk requests (housekeeping/maintenan
 and confirmed immediately, while anything guest-facing from Reception or Guest Service waits in a
 human review queue before it sends — matching the Blueprint's Days 31–60 human-in-the-loop policy.
 
-Two apps, one repo:
+Two apps plus the deployment glue, one repo:
 
 ```
 apps/
-  api/          Express + TypeScript + Prisma (SQLite locally). The whole pipeline.
+  api/          Express + TypeScript + Prisma (Postgres). The whole pipeline.
   dashboard/    React + TypeScript (Vite). Simulator, review queue, ticket board, guests, exec report.
+infra/web/      Caddy: serves the built dashboard, reverse-proxies /api and /webhook to the api service.
+docker-compose.yml   db (Postgres) + api + web, wired together for a real deployment.
 ```
 
-## Running it
+## Running it locally (no containers)
+
+Needs a Postgres instance — easiest is to let docker-compose run just the database:
 
 ```bash
 npm install
-npm run db:migrate   # creates apps/api/prisma/dev.db and applies the schema
+cp .env.example .env               # then: docker compose --env-file .env up -d db
+npm run db:migrate   # applies apps/api/prisma/migrations against that db
 npm run db:seed       # seeds one demo property, guest, reservation, and on-shift staff
 npm run dev:api        # http://localhost:4317
 npm run dev:dashboard  # http://localhost:5173 (proxies /api to the API above)
 ```
+
+## Running the whole thing containerized
+
+```bash
+cp .env.example .env   # adjust ports/secrets if the defaults collide with something else on the host
+docker compose --env-file .env up -d --build
+docker compose exec api npx tsx prisma/seed.ts   # first run only
+```
+
+Open `http://localhost:${WEB_PORT}` (`8080` by default) — Caddy serves the dashboard and proxies
+`/api/*` and `/webhook/*` to the api container; nothing needs a browser-visible port for the API
+itself. `db` runs `pg_isready`-gated so `api` never starts migrations against a database that
+isn't accepting connections yet.
+
+For an actual pilot property, set `SITE_ADDRESS` in `.env` to the property's real domain (e.g.
+`alta.example-hotel.com`) — Caddy issues and renews TLS automatically, no other change needed.
+
+This host already runs [Coolify](https://coolify.io) (self-hosted PaaS) — `docker-compose.yml` is
+directly consumable by it (point a new Coolify resource at this repo) if a managed deploy/rollback
+UI is preferred over running `docker compose` by hand.
 
 Open the dashboard, go to **Message Simulator**, and send a message like:
 
@@ -50,7 +75,8 @@ swap later, not a rewrite.
 | Guest messaging | `/api/simulate` REST endpoint + a `/webhook/whatsapp` route that already parses the real WhatsApp Cloud API payload shape | `apps/api/src/modules/whatsapp/gateway.ts` — add `WHATSAPP_CLOUD_API_TOKEN` and the actual `fetch` call is a few lines |
 | NLU / intent extraction | Keyword/regex rules in `RuleBasedIntentEngine`, covering the demo intents (extend stay, clean room, maintenance issue, complaint, FAQ) in English and Arabic | `apps/api/src/modules/nlu/index.ts` — implement `IntentEngine` with an LLM call + ASR step, same `IntentEnvelope` output shape |
 | PMS | `MockPMSAdapter` — in-memory-ish, reads/writes the same `Reservation` table a real sync would populate | `apps/api/src/modules/pms/mockAdapter.ts` — implement `PMSAdapter` against Oracle OPERA / Mews, wire up via `PMS_PROVIDER` |
-| Data store | SQLite (zero config) | Prisma `datasource` in `apps/api/prisma/schema.prisma` — change `provider` to `postgresql`, point `DATABASE_URL` at a real instance |
+
+Data store is already real Postgres, dev and prod alike — no swap needed there; `docker-compose.yml`'s `db` service is the same image either way, just with a stronger password and a real backup policy for a pilot.
 
 Everything downstream of these interfaces — the orchestrator, the three agent handlers, ticket
 routing, the dashboard — doesn't know or care which implementation it's talking to.

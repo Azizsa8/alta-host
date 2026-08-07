@@ -1,0 +1,24 @@
+# Local docker-compose defaults to plain :80. For a real pilot, set
+# SITE_ADDRESS to the property's domain (e.g. alta.example-hotel.com) and
+# Caddy handles TLS automatically — no other change needed.
+{$SITE_ADDRESS:http://:80} {
+	encode gzip
+
+	# WhatsApp Cloud API webhook + the dashboard's REST calls both go to
+	# the api service — this is the only place that routing decision lives.
+	handle /webhook/* {
+		reverse_proxy api:4317
+	}
+	handle /api/* {
+		reverse_proxy api:4317
+	}
+	handle /health {
+		reverse_proxy api:4317
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

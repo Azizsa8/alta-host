@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    name: Typecheck, build, test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies (workspaces)
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npm run db:generate --workspace apps/api
+
+      - name: Typecheck apps/api
+        run: npm run typecheck --workspace apps/api
+
+      - name: Typecheck apps/dashboard
+        run: npm run typecheck --workspace apps/dashboard
+
+      - name: Build apps/api
+        run: npm run build --workspace apps/api
+
+      - name: Build apps/dashboard
+        run: npm run build --workspace apps/dashboard
+
+      - name: Test apps/api
+        run: npm test --if-present --workspace apps/api
+
+  docker-build:
+    name: Validate Docker builds
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build apps/api image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: false
+
+      - name: Build web (dashboard + Caddy) image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/web/Dockerfile
+          push: false

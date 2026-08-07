@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../db.js";
+import { logger } from "../../logger.js";
 import { resolveConversation, sendWhatsAppMessage } from "./gateway.js";
 import { processInboundMessage } from "../orchestrator/index.js";
 
@@ -134,7 +135,7 @@ whatsappRouter.post("/webhook/whatsapp", async (req, res) => {
     });
     res.status(200).json(result);
   } catch (err) {
-    console.error("webhook error", err);
+    logger.error({ err }, "webhook error");
     res.sendStatus(500);
   }
 });

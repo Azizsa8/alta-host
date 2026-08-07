@@ -3,6 +3,7 @@ dist/
 build/
 .env
 *.log
+*.tsbuildinfo
 apps/api/prisma/dev.db
 apps/api/prisma/dev.db-journal
 .DS_Store

@@ -30,18 +30,76 @@ export async function resolveConversation(params: { propertyId: string; whatsapp
 }
 
 /**
- * Sends a message back to the guest. In demo/local mode this just persists
- * the outbound message; wiring WHATSAPP_CLOUD_API_TOKEN here is the only
- * change needed to actually deliver it via the WhatsApp Business Cloud API.
+ * Sends a message back to the guest. In demo/local mode (no
+ * WHATSAPP_CLOUD_API_TOKEN set) this just persists the outbound message.
+ * When WHATSAPP_CLOUD_API_TOKEN and WHATSAPP_PHONE_NUMBER_ID are both set,
+ * it also actually delivers the message via the WhatsApp Business Cloud API.
  */
 export async function sendWhatsAppMessage(conversationId: string, text: string) {
-  await prisma.message.create({
+  const message = await prisma.message.create({
     data: { conversationId, direction: "outbound", rawText: text, mediaType: "text" },
   });
 
   const token = process.env.WHATSAPP_CLOUD_API_TOKEN;
-  if (!token) return; // demo mode — message is only persisted, not actually sent
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  if (!token || !phoneNumberId) return; // demo mode — message is only persisted, not actually sent
 
-  // Real send would go here, e.g.:
-  // await fetch(`https://graph.facebook.com/v20.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, { ... })
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    include: { guest: true },
+  });
+  const to = conversation?.guest.whatsappId;
+  if (!to) {
+    console.error(`whatsapp send: no guest whatsappId found for conversation ${conversationId}, skipping delivery`);
+    return;
+  }
+
+  await deliverToCloudApi({ token, phoneNumberId, to, text, messageId: message.id });
+}
+
+async function deliverToCloudApi(params: {
+  token: string;
+  phoneNumberId: string;
+  to: string;
+  text: string;
+  messageId: string;
+}) {
+  const { token, phoneNumberId, to, text, messageId } = params;
+  const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`;
+  const body = JSON.stringify({
+    messaging_product: "whatsapp",
+    to,
+    type: "text",
+    text: { body: text },
+  });
+
+  const attempt = async () => {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body,
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "<unreadable body>");
+      throw new Error(`WhatsApp Cloud API responded ${response.status}: ${detail}`);
+    }
+    return response;
+  };
+
+  try {
+    await attempt();
+  } catch (firstErr) {
+    console.error(`whatsapp send failed for message ${messageId} (attempt 1), retrying once`, firstErr);
+    try {
+      await attempt();
+    } catch (secondErr) {
+      // Message is already persisted regardless of delivery outcome; log
+      // clearly and move on rather than crashing the request.
+      console.error(`whatsapp send failed for message ${messageId} (attempt 2), giving up`, secondErr);
+    }
+  }
 }

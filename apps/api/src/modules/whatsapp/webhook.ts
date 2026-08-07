@@ -25,6 +25,59 @@ const InboundPayload = z.object({
   guestName: z.string().optional(),
 });
 
+// Raw WhatsApp Cloud API webhook envelope, per Meta's documented shape:
+// https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples
+// Only the fields this system actually reads are constrained; everything
+// else is passed through loosely since Meta's payloads carry many message
+// types (image, audio, status updates, etc.) we don't process yet.
+// `text` is only required/read when `type === "text"`; other message types
+// (image, audio, status updates, reactions, etc.) are validated loosely so
+// we can still ack them cleanly without processing them.
+const WhatsAppMessage = z
+  .object({
+    from: z.string().optional(),
+    type: z.string(),
+    text: z.object({ body: z.string() }).optional(),
+  })
+  .passthrough();
+
+const WhatsAppValue = z
+  .object({
+    messaging_product: z.string().optional(),
+    metadata: z
+      .object({
+        display_phone_number: z.string().optional(),
+        phone_number_id: z.string().optional(),
+        property_id: z.string().optional(),
+      })
+      .passthrough()
+      .optional(),
+    messages: z.array(WhatsAppMessage).optional(),
+    statuses: z.array(z.unknown()).optional(),
+  })
+  .passthrough();
+
+const WhatsAppChange = z
+  .object({
+    field: z.string().optional(),
+    value: WhatsAppValue,
+  })
+  .passthrough();
+
+const WhatsAppEntry = z
+  .object({
+    id: z.string().optional(),
+    changes: z.array(WhatsAppChange),
+  })
+  .passthrough();
+
+const WhatsAppWebhookEnvelope = z
+  .object({
+    object: z.string().optional(),
+    entry: z.array(WhatsAppEntry),
+  })
+  .passthrough();
+
 // POST handler shared by the real WhatsApp Cloud API webhook shape and the
 // /simulate endpoint the dashboard uses for local demos — both ultimately
 // need {propertyId, from, text}, so real payload parsing (WA's nested
@@ -57,16 +110,23 @@ export async function handleInbound(payload: z.infer<typeof InboundPayload>) {
 }
 
 whatsappRouter.post("/webhook/whatsapp", async (req, res) => {
+  const envelopeResult = WhatsAppWebhookEnvelope.safeParse(req.body);
+  if (!envelopeResult.success) {
+    console.error("webhook: malformed WhatsApp envelope", envelopeResult.error.flatten());
+    res.status(400).json({ error: "invalid webhook payload" });
+    return;
+  }
+
   try {
     // Real WA Cloud API payloads are nested; unwrap the first text message.
-    const entry = req.body?.entry?.[0]?.changes?.[0]?.value;
+    const entry = envelopeResult.data.entry[0]?.changes?.[0]?.value;
     const message = entry?.messages?.[0];
-    if (!message || message.type !== "text") {
+    if (!message || message.type !== "text" || !message.text || !message.from) {
       res.sendStatus(200); // ack anything we don't handle yet (status updates, media, etc.)
       return;
     }
 
-    const propertyId = entry.metadata?.property_id ?? req.query.propertyId;
+    const propertyId = entry?.metadata?.property_id ?? req.query.propertyId;
     const result = await handleInbound({
       propertyId: String(propertyId),
       from: message.from,

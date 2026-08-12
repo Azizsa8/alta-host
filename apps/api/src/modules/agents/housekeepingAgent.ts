@@ -1,5 +1,5 @@
 import { createTicket } from "../tickets/ticketService.js";
-import type { ExtractedIntent } from "../nlu/types.js";
+import type { ExtractedIntent, Urgency } from "../nlu/types.js";
 import { resolveGuestLanguage, type AgentReply } from "./receptionAgent.js";
 
 // housekeeping.clean_room and maintenance.report_issue never wait on human
@@ -7,7 +7,7 @@ import { resolveGuestLanguage, type AgentReply } from "./receptionAgent.js";
 // agent roster (03.1: "auto, internal-only").
 export async function handleHousekeepingIntent(
   intent: ExtractedIntent,
-  ctx: { propertyId: string; intentId: string; guestId?: string }
+  ctx: { propertyId: string; intentId: string; guestId?: string; urgency: Urgency }
 ): Promise<AgentReply> {
   const isMaintenance = intent.type === "maintenance.report_issue";
   const description = String(intent.params.description ?? "");
@@ -16,6 +16,7 @@ export async function handleHousekeepingIntent(
     department: isMaintenance ? "maintenance" : "housekeeping",
     summary: isMaintenance ? `Maintenance: ${description.slice(0, 120)}` : "Room cleaning requested",
     propertyId: ctx.propertyId,
+    urgency: ctx.urgency,
   });
 
   // maintenance reports carry the guest's raw message (a reliable language

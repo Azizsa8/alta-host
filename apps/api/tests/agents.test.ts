@@ -123,7 +123,7 @@ describe("executeReceptionAction — mutates PMS + creates a ticket", () => {
 
     await executeReceptionAction(
       { type: "extend_checkout", params: { reservationId: reservation.id, hours: 2 } },
-      { intentId: intent.id, propertyId: property.id },
+      { intentId: intent.id, propertyId: property.id, urgency: "normal" },
       pms
     );
 
@@ -144,7 +144,11 @@ describe("executeReceptionAction — mutates PMS + creates a ticket", () => {
     });
     const pms = createPMSAdapter();
 
-    await executeReceptionAction({ type: "no_action", params: {} }, { intentId: intent.id, propertyId: property.id }, pms);
+    await executeReceptionAction(
+      { type: "no_action", params: {} },
+      { intentId: intent.id, propertyId: property.id, urgency: "normal" },
+      pms
+    );
 
     const unchanged = await prisma.reservation.findUniqueOrThrow({ where: { id: reservation.id } });
     expect(unchanged.checkOut.getTime()).toBe(reservation.checkOut.getTime());
@@ -187,7 +191,7 @@ describe("handleHousekeepingIntent — sends immediately, always creates a ticke
 
     const reply = await handleHousekeepingIntent(
       { type: "housekeeping.clean_room", params: {}, confidence: 0.85 },
-      { propertyId: property.id, intentId: intent.id }
+      { propertyId: property.id, intentId: intent.id, urgency: "normal" }
     );
 
     // Reply language depends on guest dialect resolution (added after this
@@ -211,7 +215,7 @@ describe("handleHousekeepingIntent — sends immediately, always creates a ticke
 
     await handleHousekeepingIntent(
       { type: "maintenance.report_issue", params: { description: "AC not working" }, confidence: 0.7 },
-      { propertyId: property.id, intentId: intent.id }
+      { propertyId: property.id, intentId: intent.id, urgency: "normal" }
     );
 
     const ticket = await prisma.ticket.findUnique({ where: { intentId: intent.id } });

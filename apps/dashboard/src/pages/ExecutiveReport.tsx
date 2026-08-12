@@ -38,6 +38,10 @@ export function ExecutiveReport({ propertyId, refreshKey }: { propertyId: string
               <div className="label">Pending review</div>
             </div>
             <div className="metric-card">
+              <div className="num">{report.escalatedCount}</div>
+              <div className="label">Escalated (SLA breached)</div>
+            </div>
+            <div className="metric-card">
               <div className="num">{report.sentimentBreakdown.negative ?? 0}</div>
               <div className="label">Negative-sentiment messages</div>
             </div>

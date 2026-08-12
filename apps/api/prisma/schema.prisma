@@ -106,6 +106,8 @@ model Ticket {
   assignedStaffId  String?
   assignedStaff    StaffMember? @relation(fields: [assignedStaffId], references: [id])
   summary          String
+  slaDeadline      DateTime     // FR-10 — computed at creation from department + urgency
+  escalatedAt      DateTime?    // FR-10 — set once when an open ticket passes slaDeadline
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 

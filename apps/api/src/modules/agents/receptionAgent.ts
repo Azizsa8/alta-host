@@ -1,6 +1,6 @@
 import type { PMSAdapter } from "../pms/types.js";
 import { createTicket, logAgentAction } from "../tickets/ticketService.js";
-import type { ExtractedIntent } from "../nlu/types.js";
+import type { ExtractedIntent, Urgency } from "../nlu/types.js";
 import type { PendingAction } from "../reviews/reviewService.js";
 import { prisma } from "../../db.js";
 
@@ -139,7 +139,7 @@ export async function proposeReceptionReply(
 /** Executes the mutation a proposal described — only called after human approval. */
 export async function executeReceptionAction(
   action: PendingAction,
-  ctx: { intentId: string; propertyId: string },
+  ctx: { intentId: string; propertyId: string; urgency: Urgency },
   pms: PMSAdapter
 ): Promise<void> {
   if (action.type !== "extend_checkout") return; // no_action needs no execution
@@ -153,6 +153,7 @@ export async function executeReceptionAction(
     department: "reception",
     summary: `Extend checkout for reservation ${reservationId} by ${hours}h`,
     propertyId: ctx.propertyId,
+    urgency: ctx.urgency,
   });
   await logAgentAction(ticket.id, "reception", "pms.extendCheckout", `new checkout: ${result.newCheckOut}`);
 }

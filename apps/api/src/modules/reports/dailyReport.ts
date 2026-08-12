@@ -1,4 +1,5 @@
 import { prisma } from "../../db.js";
+import { applyPendingEscalations } from "../tickets/ticketService.js";
 
 const RECOMMENDATION_KEYWORDS: Array<{ label: string; pattern: RegExp; threshold: number }> = [
   { label: "AC / chiller", pattern: /\b(ac\b|air\s*condition|chiller|مكيف)\b/i, threshold: 2 },
@@ -14,6 +15,8 @@ const RECOMMENDATION_KEYWORDS: Array<{ label: string; pattern: RegExp; threshold
  * inspection") rather than just surfacing a raw count.
  */
 export async function generateDailyReport(propertyId: string) {
+  await applyPendingEscalations();
+
   const tickets = await prisma.ticket.findMany({
     where: { intent: { message: { conversation: { guest: { propertyId } } } } },
     include: { intent: true },
@@ -37,6 +40,10 @@ export async function generateDailyReport(propertyId: string) {
     sentimentBreakdown[i.sentiment] = (sentimentBreakdown[i.sentiment] ?? 0) + 1;
   }
   const urgentCount = intents.filter((i) => i.urgency === "urgent").length;
+  // FR-10: only tickets still open past their SLA deadline count as
+  // escalated for display — matches the Ticket Board's rule that a ticket
+  // moved to done is never flagged, even if escalatedAt was set earlier.
+  const escalatedCount = tickets.filter((t) => t.status === "open" && t.escalatedAt).length;
 
   const maintenanceTickets = tickets.filter((t) => t.department === "maintenance");
   const recommendations: string[] = [];
@@ -51,6 +58,9 @@ export async function generateDailyReport(propertyId: string) {
   if (urgentCount > 0) {
     recommendations.push(`${urgentCount} urgent guest message(s) logged — check the review queue for anything still pending.`);
   }
+  if (escalatedCount > 0) {
+    recommendations.push(`${escalatedCount} open ticket(s) have breached their SLA deadline — check the Ticket Board for what's stuck.`);
+  }
 
   return {
     propertyId,
@@ -58,6 +68,7 @@ export async function generateDailyReport(propertyId: string) {
     ticketsByDepartment,
     sentimentBreakdown,
     urgentCount,
+    escalatedCount,
     pendingReviews,
     recommendations,
   };

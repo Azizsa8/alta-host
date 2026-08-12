@@ -5,6 +5,7 @@ import { handleInbound } from "../whatsapp/webhook.js";
 import { listPendingReviews } from "../reviews/reviewService.js";
 import { approveReview, rejectReview } from "../reviews/reviewOrchestrator.js";
 import { generateDailyReport } from "../reports/dailyReport.js";
+import { applyPendingEscalations } from "../tickets/ticketService.js";
 
 export const apiRouter = Router();
 
@@ -83,6 +84,7 @@ apiRouter.get(
   "/tickets",
   asyncRoute(async (req, res) => {
     const { propertyId } = PropertyIdQuery.parse(req.query);
+    await applyPendingEscalations();
     const tickets = await prisma.ticket.findMany({
       where: propertyId ? { intent: { message: { conversation: { guest: { propertyId } } } } } : undefined,
       include: {
@@ -166,6 +168,7 @@ apiRouter.get(
   "/metrics",
   asyncRoute(async (req, res) => {
     const { propertyId } = PropertyIdQuery.parse(req.query);
+    await applyPendingEscalations();
     const ticketWhere = propertyId
       ? { intent: { message: { conversation: { guest: { propertyId } } } } }
       : undefined;
@@ -173,19 +176,21 @@ apiRouter.get(
       ? { urgency: "urgent", message: { conversation: { guest: { propertyId } } } }
       : { urgency: "urgent" };
 
-    const [totalTickets, openTickets, urgentIntents, guestCount, pendingReviews] = await Promise.all([
-      prisma.ticket.count({ where: ticketWhere }),
-      prisma.ticket.count({ where: { ...ticketWhere, status: { not: "done" } } }),
-      prisma.intent.count({ where: urgentIntentWhere }),
-      prisma.guest.count({ where: propertyId ? { propertyId } : undefined }),
-      prisma.reviewItem.count({
-        where: {
-          status: "pending",
-          ...(propertyId ? { intent: { message: { conversation: { guest: { propertyId } } } } } : {}),
-        },
-      }),
-    ]);
+    const [totalTickets, openTickets, escalatedTickets, urgentIntents, guestCount, pendingReviews] =
+      await Promise.all([
+        prisma.ticket.count({ where: ticketWhere }),
+        prisma.ticket.count({ where: { ...ticketWhere, status: { not: "done" } } }),
+        prisma.ticket.count({ where: { ...ticketWhere, status: "open", escalatedAt: { not: null } } }),
+        prisma.intent.count({ where: urgentIntentWhere }),
+        prisma.guest.count({ where: propertyId ? { propertyId } : undefined }),
+        prisma.reviewItem.count({
+          where: {
+            status: "pending",
+            ...(propertyId ? { intent: { message: { conversation: { guest: { propertyId } } } } } : {}),
+          },
+        }),
+      ]);
 
-    res.json({ totalTickets, openTickets, urgentIntents, guestCount, pendingReviews });
+    res.json({ totalTickets, openTickets, escalatedTickets, urgentIntents, guestCount, pendingReviews });
   })
 );

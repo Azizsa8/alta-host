@@ -40,11 +40,13 @@ export async function executeGuestServiceAction(
 ): Promise<void> {
   if (action.type !== "log_complaint") return;
   const description = String(action.params.description ?? "");
-  const urgency = action.params.urgency === "urgent" ? " (URGENT)" : "";
+  const urgency: Urgency = action.params.urgency === "urgent" ? "urgent" : "normal";
+  const urgencyLabel = urgency === "urgent" ? " (URGENT)" : "";
   await createTicket({
     intentId: ctx.intentId,
     department: "guest_service",
-    summary: `Complaint${urgency}: ${description.slice(0, 120)}`,
+    summary: `Complaint${urgencyLabel}: ${description.slice(0, 120)}`,
     propertyId: ctx.propertyId,
+    urgency,
   });
 }

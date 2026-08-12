@@ -4,6 +4,7 @@ import { executeGuestServiceAction } from "../agents/guestServiceAgent.js";
 import { sendWhatsAppMessage } from "../whatsapp/gateway.js";
 import { getReviewItem, markReviewed, type PendingAction } from "./reviewService.js";
 import { prisma } from "../../db.js";
+import type { Urgency } from "../nlu/types.js";
 
 const pms = createPMSAdapter();
 
@@ -21,10 +22,11 @@ export async function approveReview(id: string, editedReply?: string, reviewedBy
 
   const propertyId = item.intent.message.conversation.guest.propertyId;
   const pendingAction = JSON.parse(item.pendingAction) as PendingAction;
+  const urgency: Urgency = item.intent.urgency === "urgent" ? "urgent" : "normal";
   const execCtx = { intentId: item.intentId, propertyId };
 
   if (item.department === "reception") {
-    await executeReceptionAction(pendingAction, execCtx, pms);
+    await executeReceptionAction(pendingAction, { ...execCtx, urgency }, pms);
   } else if (item.department === "guest_service") {
     await executeGuestServiceAction(pendingAction, execCtx);
   }

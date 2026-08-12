@@ -51,6 +51,10 @@ export default function App() {
               <b>{metrics.openTickets}</b>
             </div>
             <div className="row">
+              <span>Escalated</span>
+              <b>{metrics.escalatedTickets}</b>
+            </div>
+            <div className="row">
               <span>Total tickets</span>
               <b>{metrics.totalTickets}</b>
             </div>

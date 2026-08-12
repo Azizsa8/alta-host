@@ -91,7 +91,7 @@ async function dispatch(
   switch (intent.type) {
     case "housekeeping.clean_room":
     case "maintenance.report_issue": {
-      const reply = await handleHousekeepingIntent(intent, ctx);
+      const reply = await handleHousekeepingIntent(intent, { ...ctx, urgency });
       return { intentType: intent.type, status: "sent", reply: reply.text };
     }
 
@@ -99,7 +99,7 @@ async function dispatch(
     case "reception.faq": {
       const proposal = await proposeReceptionReply(intent, ctx, pms);
       if (AUTO_APPROVE_INTENTS.has(intent.type)) {
-        await executeReceptionAction(proposal.pendingAction, ctx, pms);
+        await executeReceptionAction(proposal.pendingAction, { ...ctx, urgency }, pms);
         return { intentType: intent.type, status: "sent", reply: proposal.draftReply };
       }
       await queueForReview({

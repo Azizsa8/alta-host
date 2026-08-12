@@ -7,9 +7,6 @@ const COLUMNS: Array<{ key: Ticket["status"]; label: string; next?: Ticket["stat
   { key: "done", label: "Done" },
 ];
 
-const STALE_WARN_MS = 30 * 60 * 1000; // 30 minutes
-const STALE_DANGER_MS = 2 * 60 * 60 * 1000; // 2 hours
-
 type AgeBucket = "ok" | "warn" | "danger";
 
 /** Formats a past ISO timestamp as a short relative-time string, e.g. "5m ago". */
@@ -23,10 +20,26 @@ function relativeTime(diffMs: number): string {
   return `${days}d ago`;
 }
 
-/** Age bucket used to visually flag tickets that have sat open too long. */
-function ageBucket(diffMs: number): AgeBucket {
-  if (diffMs >= STALE_DANGER_MS) return "danger";
-  if (diffMs >= STALE_WARN_MS) return "warn";
+/**
+ * FR-10: SLA bucket driven by the ticket's real per-department/urgency
+ * deadline (computed server-side, see ticketService.ts) rather than a
+ * flat age threshold. "danger" once escalatedAt is set (server-persisted,
+ * so it never flickers) or once the deadline has passed; "warn" inside the
+ * last quarter of the SLA window, so staff get advance notice before a
+ * breach, not just after. A "done" ticket is resolved — never flagged,
+ * regardless of how far past its deadline it is.
+ */
+function slaBucket(ticket: Ticket, now: number): AgeBucket {
+  if (ticket.status === "done") return "ok";
+  if (ticket.escalatedAt) return "danger";
+
+  const deadline = new Date(ticket.slaDeadline).getTime();
+  const remainingMs = deadline - now;
+  if (remainingMs <= 0) return "danger";
+
+  const created = new Date(ticket.createdAt).getTime();
+  const windowMs = Math.max(1, deadline - created);
+  if (remainingMs <= windowMs * 0.25) return "warn";
   return "ok";
 }
 
@@ -79,8 +92,7 @@ export function TicketBoard({
                 {colTickets.length === 0 && <p className="empty">Nothing here</p>}
                 {colTickets.map((t) => {
                   const diffMs = Math.max(0, now - new Date(t.createdAt).getTime());
-                  // "done" tickets are resolved, so age no longer represents an SLA risk.
-                  const bucket: AgeBucket = col.key === "done" ? "ok" : ageBucket(diffMs);
+                  const bucket = slaBucket(t, now);
                   return (
                     <div
                       className={`ticket-card${bucket !== "ok" ? ` stale-${bucket}` : ""}`}
@@ -90,7 +102,13 @@ export function TicketBoard({
                         <p className="summary">{t.summary}</p>
                         <div className="badges">
                           {t.intent.urgency === "urgent" && <span className="chip urgent">urgent</span>}
-                          <span className={`chip age-${bucket}`} title={new Date(t.createdAt).toLocaleString()}>
+                          {bucket === "danger" && t.escalatedAt && (
+                            <span className="chip age-danger">escalated</span>
+                          )}
+                          <span
+                            className={`chip age-${bucket}`}
+                            title={`SLA deadline: ${new Date(t.slaDeadline).toLocaleString()}`}
+                          >
                             {relativeTime(diffMs)}
                           </span>
                         </div>

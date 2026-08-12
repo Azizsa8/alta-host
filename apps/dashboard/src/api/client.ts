@@ -28,6 +28,8 @@ export interface Ticket {
   status: "open" | "in_progress" | "done";
   summary: string;
   createdAt: string;
+  slaDeadline: string;
+  escalatedAt: string | null;
   assignedStaff: { name: string } | null;
   intent: {
     type: string;
@@ -49,6 +51,7 @@ export interface Guest {
 export interface Metrics {
   totalTickets: number;
   openTickets: number;
+  escalatedTickets: number;
   urgentIntents: number;
   guestCount: number;
   pendingReviews: number;
@@ -77,6 +80,7 @@ export interface DailyReport {
   ticketsByDepartment: Record<string, number>;
   sentimentBreakdown: Record<string, number>;
   urgentCount: number;
+  escalatedCount: number;
   pendingReviews: number;
   recommendations: string[];
 }

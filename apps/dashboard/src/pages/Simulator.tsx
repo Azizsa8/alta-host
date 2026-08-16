@@ -2,11 +2,17 @@ import { useState } from "react";
 import { api, type SimulateResult } from "../api/client.js";
 
 const EXAMPLES = [
-  "I need a room cleaning and a two-hour late check-out",
-  "clean my room please, the wifi password doesn't work",
-  "this is unacceptable, the AC is broken and nobody has come, urgent!!!",
+  "أحتاج تنظيف الغرفة وتمديد الخروج ساعتين",
+  "نظفوا الغرفة لو سمحتوا، كلمة سر الواي فاي ما تشتغل",
+  "هذا وضع مو مقبول، المكيف خربان وما جانا أحد، بسرعة!!!",
   "ابي أمدد إقامتي وأطلب تنظيف للغرفة",
 ];
+
+const SENTIMENT_LABELS: Record<string, string> = {
+  positive: "إيجابي",
+  neutral: "محايد",
+  negative: "سلبي",
+};
 
 export function Simulator({ propertyId, onDispatched }: { propertyId: string; onDispatched: () => void }) {
   const [from, setFrom] = useState("9665xxxxxxxx");
@@ -23,89 +29,95 @@ export function Simulator({ propertyId, onDispatched }: { propertyId: string; on
       setResult(res);
       onDispatched();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "request failed");
+      setError(e instanceof Error ? e.message : "تعذر إرسال الطلب");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div>
-      <h1>Message Simulator</h1>
-      <p className="sub">
-        Stands in for a real WhatsApp message — exercises the full pipeline (NLU → agents → PMS → tickets)
-        without WhatsApp Business API credentials.
-      </p>
-
-      <div className="panel" style={{ maxWidth: 640, marginBottom: 24 }}>
-        <div className="field">
-          <label>Guest WhatsApp ID</label>
-          <input value={from} onChange={(e) => setFrom(e.target.value)} />
-        </div>
-        <div className="field">
-          <label>Message text</label>
-          <textarea value={text} onChange={(e) => setText(e.target.value)} />
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-          {EXAMPLES.map((ex) => (
-            <button key={ex} className="btn ghost" onClick={() => setText(ex)} type="button">
-              {ex.length > 34 ? ex.slice(0, 34) + "…" : ex}
+    <div className="row">
+      <div className="col-lg-7 col-md-9 mb-4">
+        <div className="card">
+          <div className="card-header pb-0">
+            <h6>محاكي الرسائل</h6>
+            <p className="text-sm mb-0">
+              يقوم مقام رسالة واتساب حقيقية — يشغّل خط الأنابيب كاملاً (فهم النية ← الوكلاء ← نظام الفندقة ←
+              التذاكر) دون الحاجة لاعتماد واتساب بزنس.
+            </p>
+          </div>
+          <div className="card-body">
+            <div className="mb-3">
+              <label className="form-label text-sm">رقم واتساب النزيل</label>
+              <input className="form-control" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </div>
+            <div className="mb-3">
+              <label className="form-label text-sm">نص الرسالة</label>
+              <textarea className="form-control" rows={3} value={text} onChange={(e) => setText(e.target.value)} />
+            </div>
+            <div className="d-flex flex-wrap gap-2 mb-3">
+              {EXAMPLES.map((ex) => (
+                <button key={ex} type="button" className="btn btn-outline-secondary btn-sm mb-0" onClick={() => setText(ex)}>
+                  {ex.length > 30 ? ex.slice(0, 30) + "…" : ex}
+                </button>
+              ))}
+            </div>
+            <button className="btn bg-gradient-dark mb-0" onClick={send} disabled={loading || !text.trim()}>
+              {loading ? "جارٍ الإرسال…" : "إرسال كنزيل"}
             </button>
-          ))}
+            {error && <p className="text-danger text-sm mt-2 mb-0">{error}</p>}
+          </div>
         </div>
-        <button className="btn" onClick={send} disabled={loading || !text.trim()}>
-          {loading ? "Sending…" : "Send as guest"}
-        </button>
-        {error && <p className="error">{error}</p>}
       </div>
 
       {result && (
-        <div className="panel" style={{ maxWidth: 640 }}>
-          <h3 style={{ marginTop: 0, fontSize: "0.95rem" }}>Extracted intents</h3>
-          <table style={{ marginBottom: 16 }}>
-            <tbody>
-              {result.intentEnvelope.intents.length === 0 && (
-                <tr>
-                  <td colSpan={2} className="empty">
-                    No intent matched — rule-based engine only recognizes the demo intent set.
-                  </td>
-                </tr>
+        <div className="col-lg-7 col-md-9 mb-4">
+          <div className="card">
+            <div className="card-header pb-0">
+              <h6>النوايا المستخرجة</h6>
+            </div>
+            <div className="card-body pt-2">
+              {result.intentEnvelope.intents.length === 0 ? (
+                <p className="text-sm text-secondary">لم يتم التعرف على أي نية — المحرك القائم على القواعد يغطي مجموعة النوايا التجريبية فقط.</p>
+              ) : (
+                <table className="table align-items-center mb-3">
+                  <tbody>
+                    {result.intentEnvelope.intents.map((i, idx) => (
+                      <tr key={idx}>
+                        <td className="mono">
+                          <b>{i.type}</b>
+                        </td>
+                        <td className="text-sm text-secondary">درجة الثقة {i.confidence}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
-              {result.intentEnvelope.intents.map((i, idx) => (
-                <tr key={idx}>
-                  <td className="mono">
-                    <b>{i.type}</b>
-                  </td>
-                  <td>confidence {i.confidence}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-            <span className={`chip ${result.intentEnvelope.urgency === "urgent" ? "urgent" : "in_progress"}`}>
-              {result.intentEnvelope.sentiment}
-            </span>
-            <span className={`chip ${result.intentEnvelope.urgency === "urgent" ? "urgent" : "done"}`}>
-              {result.intentEnvelope.urgency}
-            </span>
+              <div className="d-flex gap-2 mb-3">
+                <span className={`badge ${result.intentEnvelope.urgency === "urgent" ? "bg-gradient-danger" : "bg-gradient-secondary"}`}>
+                  {SENTIMENT_LABELS[result.intentEnvelope.sentiment] ?? result.intentEnvelope.sentiment}
+                </span>
+                <span className={`badge ${result.intentEnvelope.urgency === "urgent" ? "bg-gradient-danger" : "bg-gradient-success"}`}>
+                  {result.intentEnvelope.urgency === "urgent" ? "عاجل" : "عادي"}
+                </span>
+              </div>
+              <h6 className="text-sm">نتيجة التوجيه</h6>
+              <ul className="list-group">
+                {result.outcomes.map((o, idx) => (
+                  <li key={idx} className="list-group-item border-0 ps-0 text-sm">
+                    {o.status === "sent" ? (
+                      o.reply
+                    ) : (
+                      <>
+                        <span className="badge bg-gradient-warning me-2">بانتظار المراجعة</span>
+                        {o.intentType} — بانتظار قائمة المراجعة، لم يُرسل للنزيل بعد.
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
-          <h3 style={{ fontSize: "0.95rem" }}>Dispatch outcome</h3>
-          <ul className="reply-list">
-            {result.outcomes.map((o, idx) => (
-              <li key={idx}>
-                {o.status === "sent" ? (
-                  o.reply
-                ) : (
-                  <>
-                    <span className="chip open" style={{ marginRight: 8 }}>
-                      queued for review
-                    </span>
-                    {o.intentType} — waiting in the Review Queue, not sent to the guest yet.
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
         </div>
       )}
     </div>

@@ -48,56 +48,58 @@ export function ReviewQueue({
     }
   }
 
-  // Urgent items first — nothing here has been sent to the guest yet.
+  // العاجل أولاً — لم يُرسل أي شيء هنا للنزيل بعد.
   const sorted = [...items].sort((a, b) => (b.intent.urgency === "urgent" ? 1 : 0) - (a.intent.urgency === "urgent" ? 1 : 0));
 
   return (
-    <div>
-      <h1>Review Queue</h1>
-      <p className="sub">
-        Reception and Guest Service replies wait here before they reach the guest — the Days 31–60
-        human-in-the-loop policy from the implementation blueprint. Edit the text if needed, then
-        approve or reject.
-      </p>
+    <div className="row">
+      <div className="col-12 mb-4">
+        <p className="text-sm text-secondary mb-0">
+          ردود الاستقبال وخدمة النزلاء تنتظر هنا قبل وصولها للنزيل — سياسة المراجعة البشرية (الأيام 31–60) من
+          مخطط التنفيذ. عدّل النص إن لزم، ثم اعتمد أو ارفض.
+        </p>
+      </div>
 
       {loading ? (
-        <p className="empty">Loading…</p>
+        <p className="text-sm text-secondary">جارٍ التحميل…</p>
       ) : sorted.length === 0 ? (
-        <p className="empty">Nothing pending — queue is clear.</p>
+        <p className="text-sm text-secondary">لا يوجد شيء بالانتظار — القائمة فارغة.</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 640 }}>
-          {sorted.map((item) => (
-            <div className="panel" key={item.id}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8 }}>
+        sorted.map((item) => (
+          <div className="col-lg-6 mb-4" key={item.id}>
+            <div className="card h-100">
+              <div className="card-header pb-0 d-flex justify-content-between align-items-start">
                 <div>
-                  <b className="mono">{item.intent.type}</b>
-                  <div className="meta" style={{ color: "var(--ink-faint)", fontSize: "0.8rem", marginTop: 2 }}>
-                    guest: {item.intent.message.conversation.guest.name ?? item.intent.message.conversation.guest.whatsappId}
-                  </div>
+                  <b className="mono text-sm">{item.intent.type}</b>
+                  <p className="text-xs text-secondary mb-0 mt-1">
+                    النزيل: {item.intent.message.conversation.guest.name ?? item.intent.message.conversation.guest.whatsappId}
+                  </p>
                 </div>
-                {item.intent.urgency === "urgent" && <span className="chip urgent">urgent</span>}
+                {item.intent.urgency === "urgent" && <span className="badge bg-gradient-danger">عاجل</span>}
               </div>
-              <p style={{ fontStyle: "italic", color: "var(--ink-soft)", fontSize: "0.88rem" }}>
-                "{item.intent.message.rawText}"
-              </p>
-              <div className="field">
-                <label>Draft reply (editable)</label>
-                <textarea
-                  value={drafts[item.id] ?? ""}
-                  onChange={(e) => setDrafts((d) => ({ ...d, [item.id]: e.target.value }))}
-                />
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn" disabled={busyId === item.id} onClick={() => approve(item)}>
-                  Approve &amp; send
-                </button>
-                <button className="btn ghost" disabled={busyId === item.id} onClick={() => reject(item)}>
-                  Reject
-                </button>
+              <div className="card-body pt-2">
+                <p className="text-sm fst-italic text-secondary">"{item.intent.message.rawText}"</p>
+                <div className="mb-3">
+                  <label className="form-label text-sm">الرد المقترح (قابل للتعديل)</label>
+                  <textarea
+                    className="form-control"
+                    rows={3}
+                    value={drafts[item.id] ?? ""}
+                    onChange={(e) => setDrafts((d) => ({ ...d, [item.id]: e.target.value }))}
+                  />
+                </div>
+                <div className="d-flex gap-2">
+                  <button className="btn bg-gradient-success mb-0" disabled={busyId === item.id} onClick={() => approve(item)}>
+                    اعتماد وإرسال
+                  </button>
+                  <button className="btn btn-outline-secondary mb-0" disabled={busyId === item.id} onClick={() => reject(item)}>
+                    رفض
+                  </button>
+                </div>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))
       )}
     </div>
   );

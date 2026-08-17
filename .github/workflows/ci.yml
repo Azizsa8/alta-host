@@ -8,6 +8,25 @@ jobs:
   build-and-test:
     name: Typecheck, build, test
     runs-on: ubuntu-latest
+    # tests/globalSetup.ts creates its own "alta_test" database on this
+    # instance and migrates it — the test suite needs a live Postgres to
+    # connect to, not a mock.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: alta
+          POSTGRES_PASSWORD: devpassword
+          POSTGRES_DB: alta
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U alta"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://alta:devpassword@localhost:5432/alta
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

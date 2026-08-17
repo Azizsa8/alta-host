@@ -6,8 +6,12 @@ import { listPendingReviews } from "../reviews/reviewService.js";
 import { approveReview, rejectReview } from "../reviews/reviewOrchestrator.js";
 import { generateDailyReport } from "../reports/dailyReport.js";
 import { applyPendingEscalations } from "../tickets/ticketService.js";
+import { requireAuth } from "../auth/middleware.js";
 
 export const apiRouter = Router();
+// Everything in this router is dashboard/staff-facing — /auth/login and
+// /auth/me are mounted separately in server.ts, before this middleware.
+apiRouter.use(requireAuth);
 
 // Shared error shape for every route in this file: Zod validation failures
 // become a 400 with a readable message, anything else is treated as a
@@ -140,7 +144,6 @@ apiRouter.get(
 const ReviewDecision = z.object({
   action: z.enum(["approve", "reject"]),
   editedReply: z.string().optional(),
-  reviewedBy: z.string().optional(),
 });
 
 apiRouter.patch(
@@ -148,10 +151,13 @@ apiRouter.patch(
   asyncRoute(async (req, res) => {
     const { id } = IdParam.parse(req.params);
     const payload = ReviewDecision.parse(req.body);
+    // reviewedBy comes from the authenticated session, never the request
+    // body — a client-supplied name couldn't be trusted as an audit trail.
+    const reviewedBy = req.staff!.name;
     const result =
       payload.action === "approve"
-        ? await approveReview(id, payload.editedReply, payload.reviewedBy)
-        : await rejectReview(id, payload.reviewedBy);
+        ? await approveReview(id, payload.editedReply, reviewedBy)
+        : await rejectReview(id, reviewedBy);
     res.json(result);
   })
 );

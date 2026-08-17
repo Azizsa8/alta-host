@@ -45,6 +45,10 @@ services:
       MEWS_CLIENT_TOKEN: ${MEWS_CLIENT_TOKEN:-}
       MEWS_ACCESS_TOKEN: ${MEWS_ACCESS_TOKEN:-}
       MEWS_CLIENT_NAME: ${MEWS_CLIENT_NAME:-}
+      # Signs dashboard login tokens (see modules/auth/tokens.ts) — falls
+      # back to an insecure hardcoded dev value with a warning logged if
+      # unset. Set a real random value for anything beyond local dev.
+      JWT_SECRET: ${JWT_SECRET:-}
       AUTO_APPROVE_INTENTS: ${AUTO_APPROVE_INTENTS:-}
     expose:
       - "4317"

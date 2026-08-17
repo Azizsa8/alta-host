@@ -5,6 +5,33 @@
 // origin) at build time to point the dashboard at it instead.
 const BASE = `${import.meta.env.VITE_API_BASE_URL ?? ""}/api`;
 
+export interface Staff {
+  id: string;
+  name: string;
+  role: string;
+  propertyId: string;
+}
+
+const TOKEN_KEY = "alta_token";
+
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+function setToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+export function clearToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+// App.tsx registers a handler here so a 401 anywhere (an expired token, not
+// just a failed login) immediately drops back to the login screen instead
+// of leaving every caller to check for it individually.
+let unauthorizedHandler: (() => void) | null = null;
+export function onUnauthorized(handler: () => void): void {
+  unauthorizedHandler = handler;
+}
+
 export interface DispatchOutcome {
   intentType: string;
   status: "sent" | "queued_for_review";
@@ -86,6 +113,7 @@ export interface DailyReport {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken();
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: {
@@ -96,9 +124,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       // continue" interstitial to browser-originated requests instead of
       // proxying them, which silently breaks every fetch call here.
       "Bypass-Tunnel-Reminder": "true",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   });
+  if (res.status === 401) {
+    // Only trigger the "force back to login" handler if a token actually
+    // just got invalidated — a fresh login attempt with no token yet is
+    // also a 401 on wrong credentials, and shouldn't re-fire the handler
+    // that's already showing the login screen.
+    const hadToken = !!token;
+    clearToken();
+    if (hadToken) unauthorizedHandler?.();
+  }
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`${res.status} ${res.statusText}: ${body}`);
@@ -107,6 +145,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  login: async (username: string, password: string) => {
+    const result = await request<{ token: string; staff: Staff }>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    });
+    setToken(result.token);
+    return result.staff;
+  },
+  me: () => request<{ staff: Staff }>("/auth/me").then((r) => r.staff),
+  logout: () => clearToken(),
   simulate: (payload: { propertyId: string; from: string; text: string; guestName?: string }) =>
     request<SimulateResult>("/simulate", { method: "POST", body: JSON.stringify(payload) }),
   tickets: (propertyId: string) => request<Ticket[]>(`/tickets?propertyId=${propertyId}`),

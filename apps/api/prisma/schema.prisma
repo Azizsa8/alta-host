@@ -56,13 +56,18 @@ model Reservation {
 }
 
 model StaffMember {
-  id         String   @id @default(uuid())
-  propertyId String
-  property   Property @relation(fields: [propertyId], references: [id])
-  name       String
-  role       String   // reception | housekeeping | maintenance | manager
-  onShift    Boolean  @default(true)
-  whatsappId String?
+  id           String   @id @default(uuid())
+  propertyId   String
+  property     Property @relation(fields: [propertyId], references: [id])
+  name         String
+  role         String   // reception | housekeeping | maintenance | manager
+  onShift      Boolean  @default(true)
+  whatsappId   String?
+  // Dashboard login — both null means this staff record can't log in (e.g.
+  // housekeeping/maintenance staff who only ever appear as a ticket
+  // assignee, never open the Command Center themselves).
+  username     String?  @unique
+  passwordHash String?
 
   tickets Ticket[]
 }

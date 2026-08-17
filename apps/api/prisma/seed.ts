@@ -1,6 +1,12 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
+
+// Demo/local-only — every seeded property's login uses this same password,
+// deliberately simple since it's never used against real guest data. A real
+// pilot creates its own StaffMember rows with real passwords, not this seed.
+const DEMO_PASSWORD_HASH = bcrypt.hashSync("alta-demo-2026", 10);
 
 async function main() {
   const property = await prisma.property.upsert({
@@ -38,18 +44,25 @@ async function main() {
     },
   });
 
-  const staffRoles: Array<{ name: string; role: string }> = [
-    { name: "Fahad (Reception)", role: "reception" },
-    { name: "Noura (Housekeeping)", role: "housekeeping" },
-    { name: "Salem (Maintenance)", role: "maintenance" },
-    { name: "Layla (Guest Service)", role: "guest_service" },
+  const staffRoles: Array<{ name: string; role: string; username: string }> = [
+    { name: "Fahad (Reception)", role: "reception", username: "fahad" },
+    { name: "Noura (Housekeeping)", role: "housekeeping", username: "noura" },
+    { name: "Salem (Maintenance)", role: "maintenance", username: "salem" },
+    { name: "Layla (Guest Service)", role: "guest_service", username: "layla" },
   ];
 
   for (const s of staffRoles) {
     const existing = await prisma.staffMember.findFirst({ where: { propertyId: property.id, name: s.name } });
     if (!existing) {
       await prisma.staffMember.create({
-        data: { propertyId: property.id, name: s.name, role: s.role, onShift: true },
+        data: {
+          propertyId: property.id,
+          name: s.name,
+          role: s.role,
+          onShift: true,
+          username: s.username,
+          passwordHash: DEMO_PASSWORD_HASH,
+        },
       });
     }
   }
@@ -95,18 +108,25 @@ async function main() {
     },
   });
 
-  const staffRoles2: Array<{ name: string; role: string }> = [
-    { name: "Khalid (Reception)", role: "reception" },
-    { name: "Mona (Housekeeping)", role: "housekeeping" },
-    { name: "Yousef (Maintenance)", role: "maintenance" },
-    { name: "Huda (Guest Service)", role: "guest_service" },
+  const staffRoles2: Array<{ name: string; role: string; username: string }> = [
+    { name: "Khalid (Reception)", role: "reception", username: "khalid" },
+    { name: "Mona (Housekeeping)", role: "housekeeping", username: "mona" },
+    { name: "Yousef (Maintenance)", role: "maintenance", username: "yousef" },
+    { name: "Huda (Guest Service)", role: "guest_service", username: "huda" },
   ];
 
   for (const s of staffRoles2) {
     const existing = await prisma.staffMember.findFirst({ where: { propertyId: property2.id, name: s.name } });
     if (!existing) {
       await prisma.staffMember.create({
-        data: { propertyId: property2.id, name: s.name, role: s.role, onShift: true },
+        data: {
+          propertyId: property2.id,
+          name: s.name,
+          role: s.role,
+          onShift: true,
+          username: s.username,
+          passwordHash: DEMO_PASSWORD_HASH,
+        },
       });
     }
   }

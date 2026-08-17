@@ -79,6 +79,23 @@ the WAHA container, so there's no accidental path to sending real guest traffic 
 unofficial transport. `GET /health` (proxied straight through by Caddy, same path) is a plain liveness check — point an
 uptime monitor at it once this is deployed somewhere that matters.
 
+## Dashboard authentication
+
+Every `/api/*` route (except `/api/auth/login` and `/api/auth/me` themselves) requires a valid
+staff bearer token — the dashboard is no longer reachable by anyone who has the URL. Login is
+per-`StaffMember` (`username`/`passwordHash` on that model), issuing a 12-hour JWT signed with
+`JWT_SECRET`. Approve/reject on the Review Queue now records the real logged-in staff member's
+name as `reviewedBy`, instead of a field the dashboard never actually populated before.
+
+Demo credentials (seeded by `prisma/seed.ts`, password `alta-demo-2026` for all of them):
+`fahad`, `noura`, `salem`, `layla` (Riyadh Boulevard property) and `khalid`, `mona`, `yousef`,
+`huda` (Jeddah Corniche property) — each logging in scopes the dashboard to their own property via
+`StaffMember.propertyId`, replacing the old hardcoded `PROPERTY_ID` constant.
+
+Set `JWT_SECRET` (`openssl rand -base64 32`) for anything beyond local dev — unset falls back to a
+hardcoded insecure value with a warning logged, fine for docker-compose on a laptop, not fine for
+anything reachable from the internet.
+
 ## What's real vs. stubbed
 
 Nothing here *requires* API keys or vendor accounts to run — every external integration is

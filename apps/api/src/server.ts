@@ -7,6 +7,7 @@ import { pinoHttp } from "pino-http";
 import { logger } from "./logger.js";
 import { whatsappRouter } from "./modules/whatsapp/webhook.js";
 import { apiRouter } from "./modules/api/routes.js";
+import { authRouter } from "./modules/auth/routes.js";
 
 const app = express();
 // Deployed behind exactly one reverse proxy (Caddy, see infra/web/Caddyfile /
@@ -44,7 +45,21 @@ const apiLimiter = rateLimit({
 });
 app.use("/api", apiLimiter);
 
+// Tighter cap specifically on login — the one write endpoint reachable
+// without already having a token, so it's the credential-stuffing target.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use("/api/auth/login", loginLimiter);
+
 app.use(whatsappRouter);
+// authRouter is mounted before apiRouter applies its own requireAuth
+// middleware (see modules/api/routes.ts) — login/me must stay reachable
+// without a token already in hand.
+app.use("/api", authRouter);
 app.use("/api", apiRouter);
 
 const port = Number(process.env.PORT ?? 4317);

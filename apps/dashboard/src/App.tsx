@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { api, type Metrics } from "./api/client.js";
+import { api, getToken, onUnauthorized, type Metrics, type Staff } from "./api/client.js";
+import { Login } from "./pages/Login.js";
 import { Simulator } from "./pages/Simulator.js";
 import { TicketBoard } from "./pages/TicketBoard.js";
 import { Guests } from "./pages/Guests.js";
 import { ReviewQueue } from "./pages/ReviewQueue.js";
 import { ExecutiveReport } from "./pages/ExecutiveReport.js";
 
-const PROPERTY_ID = "demo-property";
 type View = "simulator" | "reviews" | "tickets" | "guests" | "report";
 
 const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
@@ -25,15 +25,42 @@ const VIEW_TITLES: Record<View, string> = {
   report: "التقرير التنفيذي",
 };
 
+const ROLE_LABELS: Record<string, string> = {
+  reception: "الاستقبال",
+  housekeeping: "التدبير المنزلي",
+  maintenance: "الصيانة",
+  guest_service: "خدمة النزلاء",
+  manager: "الإدارة",
+};
+
 export default function App() {
+  const [staff, setStaff] = useState<Staff | null | undefined>(undefined); // undefined = still checking
   const [view, setView] = useState<View>("simulator");
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [sidenavPinned, setSidenavPinned] = useState(false);
 
+  // On load, a stored token is only a claim — confirm it against /auth/me
+  // before trusting it, since it may have expired since the last visit.
   useEffect(() => {
-    api.metrics(PROPERTY_ID).then(setMetrics).catch(() => {});
-  }, [refreshKey]);
+    if (!getToken()) {
+      setStaff(null);
+      return;
+    }
+    api
+      .me()
+      .then(setStaff)
+      .catch(() => setStaff(null));
+  }, []);
+
+  useEffect(() => {
+    onUnauthorized(() => setStaff(null));
+  }, []);
+
+  useEffect(() => {
+    if (!staff) return;
+    api.metrics(staff.propertyId).then(setMetrics).catch(() => {});
+  }, [staff, refreshKey]);
 
   // Mirrors the template's own g-sidenav-pinned mechanism (see
   // _navbar-vertical.scss) for the mobile off-canvas sidenav — the
@@ -48,6 +75,18 @@ export default function App() {
   function go(next: View) {
     setView(next);
     setSidenavPinned(false);
+  }
+
+  function logout() {
+    api.logout();
+    setStaff(null);
+  }
+
+  if (staff === undefined) {
+    return null; // brief flash while /auth/me resolves — nothing to show yet
+  }
+  if (!staff) {
+    return <Login onLoggedIn={setStaff} />;
   }
 
   return (
@@ -87,8 +126,8 @@ export default function App() {
             ))}
           </ul>
         </div>
-        {metrics && (
-          <div className="sidenav-footer position-absolute w-100 bottom-0">
+        <div className="sidenav-footer position-absolute w-100 bottom-0">
+          {metrics && (
             <div className="mx-3 mb-3 text-white text-xs opacity-8">
               <div className="d-flex justify-content-between py-1">
                 <span>تذاكر مفتوحة</span>
@@ -111,8 +150,23 @@ export default function App() {
                 <b className="mono">{metrics.guestCount}</b>
               </div>
             </div>
+          )}
+          <div className="mx-3 mb-3 pt-2 border-top border-white border-opacity-10">
+            <div className="d-flex justify-content-between align-items-center">
+              <div>
+                <p className="text-white text-sm mb-0">{staff.name}</p>
+                <p className="text-white opacity-6 text-xs mb-0">{ROLE_LABELS[staff.role] ?? staff.role}</p>
+              </div>
+              <button
+                className="btn btn-outline-light btn-sm mb-0"
+                onClick={logout}
+                style={{ fontSize: "0.7rem", padding: "4px 10px" }}
+              >
+                خروج
+              </button>
+            </div>
           </div>
-        )}
+        </div>
       </aside>
       <main className="main-content position-relative max-height-vh-100 h-100 border-radius-lg">
         <nav className="navbar navbar-main navbar-expand-lg px-0 mx-4 shadow-none border-radius-xl" id="navbarBlur">
@@ -151,11 +205,11 @@ export default function App() {
           </div>
         </nav>
         <div className="container-fluid py-4">
-          {view === "simulator" && <Simulator propertyId={PROPERTY_ID} onDispatched={bumpRefresh} />}
-          {view === "reviews" && <ReviewQueue propertyId={PROPERTY_ID} refreshKey={refreshKey} onChanged={bumpRefresh} />}
-          {view === "tickets" && <TicketBoard propertyId={PROPERTY_ID} refreshKey={refreshKey} onChanged={bumpRefresh} />}
-          {view === "guests" && <Guests propertyId={PROPERTY_ID} refreshKey={refreshKey} />}
-          {view === "report" && <ExecutiveReport propertyId={PROPERTY_ID} refreshKey={refreshKey} />}
+          {view === "simulator" && <Simulator propertyId={staff.propertyId} onDispatched={bumpRefresh} />}
+          {view === "reviews" && <ReviewQueue propertyId={staff.propertyId} refreshKey={refreshKey} onChanged={bumpRefresh} />}
+          {view === "tickets" && <TicketBoard propertyId={staff.propertyId} refreshKey={refreshKey} onChanged={bumpRefresh} />}
+          {view === "guests" && <Guests propertyId={staff.propertyId} refreshKey={refreshKey} />}
+          {view === "report" && <ExecutiveReport propertyId={staff.propertyId} refreshKey={refreshKey} />}
         </div>
       </main>
     </>

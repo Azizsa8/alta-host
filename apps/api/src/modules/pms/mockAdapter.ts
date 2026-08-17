@@ -1,8 +1,10 @@
 import { prisma } from "../../db.js";
+import { MewsPMSAdapter } from "./mewsAdapter.js";
 import type { AvailabilityResult, BillingStatus, PMSAdapter, ReservationUpdateResult } from "./types.js";
 
-// Stands in for Oracle OPERA / Mews during local dev and the pilot's early
-// weeks, before the real adapter is wired up. Reads/writes the same
+// Stands in for a real PMS during local dev and demos (PMS_PROVIDER=mock,
+// the default) — see mewsAdapter.ts for the real Mews implementation.
+// Reads/writes the same
 // Reservation table a real adapter would sync from the PMS.
 export class MockPMSAdapter implements PMSAdapter {
   async getAvailability(propertyId: string, roomNumber: string): Promise<AvailabilityResult> {
@@ -45,7 +47,25 @@ export class MockPMSAdapter implements PMSAdapter {
 }
 
 export function createPMSAdapter(): PMSAdapter {
-  // PMS_PROVIDER selects the real adapter once one exists (e.g. "opera", "mews").
-  // Only "mock" is implemented today.
+  const provider = process.env.PMS_PROVIDER ?? "mock";
+
+  if (provider === "mews") {
+    const clientToken = process.env.MEWS_CLIENT_TOKEN;
+    const accessToken = process.env.MEWS_ACCESS_TOKEN;
+    if (clientToken && accessToken) {
+      return new MewsPMSAdapter({
+        platformAddress: process.env.MEWS_PLATFORM_ADDRESS ?? "https://api.mews-demo.com",
+        clientToken,
+        accessToken,
+        client: process.env.MEWS_CLIENT_NAME ?? "ALTA 1.0.0",
+      });
+    }
+    console.warn(
+      "PMS_PROVIDER=mews but MEWS_CLIENT_TOKEN/MEWS_ACCESS_TOKEN are unset — falling back to MockPMSAdapter. Set both to use the real Mews adapter."
+    );
+  }
+
+  // Oracle OPERA has no equivalent adapter yet — needs a real pilot's
+  // credentials and API access level to build against.
   return new MockPMSAdapter();
 }

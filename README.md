@@ -71,7 +71,7 @@ Three distinct configurations, same codebase:
 | `WHATSAPP_PROVIDER` | unset (persisted only) | `waha` (real number, no BSP wait) | `cloud_api` (required) |
 | `NLU_PROVIDER` | `rule_based` | `rule_based` or `llm` | `llm` (recommended) |
 | `ASR_PROVIDER` | unset | `whisper` if demoing voice messages | `whisper` |
-| `PMS_PROVIDER` | `mock` | `mock` | real adapter once one exists |
+| `PMS_PROVIDER` | `mock` | `mews` (real demo API, not a real property) | `mews` once the pilot's own Mews credentials exist, or a new adapter if the pilot runs Oracle OPERA |
 | `AUTO_APPROVE_INTENTS` | empty | empty | empty until Phase 3 |
 
 `docker compose up -d` (no `--profile dev`) is the staging/pilot-safe default — it never starts
@@ -92,7 +92,7 @@ later, not a rewrite.
 | WhatsApp send/receive | Persisted only, not delivered (`WHATSAPP_PROVIDER=cloud_api` with no credentials) | `WHATSAPP_PROVIDER=cloud_api` + `WHATSAPP_CLOUD_API_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` — Meta's official Business Cloud API, the only transport a real pilot should use |
 | NLU / intent extraction | `RuleBasedIntentEngine` — keyword/regex rules covering the demo intent set, English and Arabic | `NLU_PROVIDER=llm` + `ANTHROPIC_API_KEY` — Claude-backed `LlmIntentEngine`, same `IntentEnvelope` output shape |
 | Voice message transcription | Unhandled — voice messages are acked but not processed (`ASR_PROVIDER` unset) | `ASR_PROVIDER=whisper` — self-hosted, open-weights Whisper (`@xenova/transformers`), no external account; downloads model weights on first use |
-| PMS | `MockPMSAdapter` — in-memory-ish, reads/writes the same `Reservation` table a real sync would populate | `apps/api/src/modules/pms/mockAdapter.ts` — implement `PMSAdapter` against Oracle OPERA / Mews, wire up via `PMS_PROVIDER` (not built yet — needs a real pilot's PMS to target) |
+| PMS | `MockPMSAdapter` — in-memory-ish, reads/writes the same `Reservation` table a real sync would populate | `PMS_PROVIDER=mews` + `MEWS_CLIENT_TOKEN`/`MEWS_ACCESS_TOKEN` — real `MewsPMSAdapter` against the Mews Connector API. Oracle OPERA has no adapter yet; needs a real pilot's credentials and API access level to build against |
 
 Data store is already real Postgres, dev and prod alike — no swap needed there; `docker-compose.yml`'s `db` service is the same image either way, just with a stronger password and a real backup policy for a pilot.
 
@@ -116,6 +116,38 @@ docker compose --profile dev up -d waha
 ```
 
 It only runs with `--profile dev` — a default or staging `docker compose up` never starts it.
+
+### Mews PMS adapter — real, but with one real gap
+
+`PMS_PROVIDER=mews` + `MEWS_CLIENT_TOKEN`/`MEWS_ACCESS_TOKEN` (`MEWS_PLATFORM_ADDRESS` defaults to
+Mews's own public demo API) wires in `MewsPMSAdapter`, a real implementation against the
+[Mews Connector API](https://docs.mews.com/connector-api/getting-started) — verified end-to-end
+against Mews's live demo environment, not just typechecked against the docs (see
+`apps/api/scripts/verify-mews-adapter.ts`, which creates a real customer + reservation and drives
+every adapter method against it).
+
+**The one real gap**: the Connector API has no operation to look up a Customer by phone number —
+confirmed directly against the live API, not assumed (`customers/getAll` and `customers/search`
+only filter by id, email, name, or loyalty code). A WhatsApp guest is identified only by phone, so
+the adapter can't self-resolve which Mews customer a guest is. It reads `Guest.externalId` instead,
+which has to be populated by a separate reservation-sync process (polling or webhook-driven import
+of upcoming reservations into local `Guest`/`Reservation` rows, run *before* a guest ever messages)
+— that sync doesn't exist in this codebase yet. Every adapter method degrades gracefully (a safe
+default, never a crash or a wrong answer) when `externalId` is unset.
+
+Two smaller, deliberate simplifications, both matching `MockPMSAdapter`'s own behavior exactly so
+neither is a regression introduced by the real adapter: `getBillingStatus`'s `outstandingBalance`
+always returns `0` (a real number needs summing `orderItems`/`payments` across possibly-multiple
+open bills — real API surface exists, but nothing in this codebase reads the actual number yet,
+only `hasValidPaymentMethod`); and `getAvailability` checks for *any* active reservation on a room
+regardless of dates, since the interface itself takes no date range.
+
+One more thing worth knowing if touching this code: Mews's `AccountIds`/`AssignedResourceIds`
+filtered search has a brief (~1-2s) propagation delay after a reservation is first created or
+updated — confirmed by hand against the live API. Direct `ReservationIds` lookups (what
+`extendCheckout` uses) don't have this lag. Never matters in real usage (a sync process isn't
+querying milliseconds after a booking lands) but caused two failures in the verification script
+before being tracked down — see the comments in `verify-mews-adapter.ts` for the retry pattern.
 
 ## What's deliberately not built yet
 

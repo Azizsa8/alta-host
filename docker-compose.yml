@@ -27,13 +27,39 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-alta}:${POSTGRES_PASSWORD:-devpassword}@db:5432/${POSTGRES_DB:-alta}
       PORT: 4317
+      WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER:-cloud_api}
       WHATSAPP_CLOUD_API_TOKEN: ${WHATSAPP_CLOUD_API_TOKEN:-}
       WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
       WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-alta-dev-verify-token}
+      # WAHA is a dev/demo-only transport (see wahaGateway.ts) — the "waha"
+      # service below only starts under `docker compose --profile dev up`,
+      # never in a default/staging run.
+      WAHA_BASE_URL: ${WAHA_BASE_URL:-http://waha:3000}
+      WAHA_SESSION: ${WAHA_SESSION:-default}
+      WAHA_API_KEY: ${WAHA_API_KEY:-}
+      NLU_PROVIDER: ${NLU_PROVIDER:-rule_based}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       PMS_PROVIDER: ${PMS_PROVIDER:-mock}
       AUTO_APPROVE_INTENTS: ${AUTO_APPROVE_INTENTS:-}
     expose:
       - "4317"
+
+  # Self-hosted WAHA (WhatsApp HTTP API) — dev/demo transport only, see
+  # wahaGateway.ts for why this must never carry real guest traffic. Only
+  # starts with `docker compose --profile dev up`; excluded from a default
+  # or staging run.
+  waha:
+    image: devlikeapro/waha:latest
+    restart: unless-stopped
+    profiles: ["dev"]
+    depends_on:
+      - api
+    environment:
+      WHATSAPP_HOOK_URL: http://api:4317/webhook/waha?propertyId=${WAHA_PROPERTY_ID:-demo-property}
+      WHATSAPP_HOOK_EVENTS: message
+      WAHA_API_KEY: ${WAHA_API_KEY:-}
+    ports:
+      - "${WAHA_PORT:-3210}:3000"
 
   web:
     build:

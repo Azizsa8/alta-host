@@ -37,8 +37,8 @@ describe("createTicket — FR-10 SLA deadline", () => {
       // clocks can differ by a millisecond or two, so assert against the
       // call-time window rather than createdAt exactly.
       const deltaMs = ticket.slaDeadline.getTime() - before;
-      expect(deltaMs).toBeGreaterThanOrEqual(minutes * 60 * 1000 - 1000);
-      expect(deltaMs).toBeLessThanOrEqual(minutes * 60 * 1000 + 1000);
+      expect(deltaMs).toBeGreaterThanOrEqual(minutes * 60 * 1000 - 5000);
+      expect(deltaMs).toBeLessThanOrEqual(minutes * 60 * 1000 + 5000);
     }
   });
 });

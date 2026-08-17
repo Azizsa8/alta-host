@@ -15,7 +15,9 @@ RUN npx prisma generate --schema apps/api/prisma/schema.prisma
 RUN npm run build --workspace apps/api
 
 FROM node:20-alpine AS runtime
-RUN apk add --no-cache openssl
+# ffmpeg decodes inbound WhatsApp voice notes (ogg/opus, m4a, etc.) to raw
+# PCM for the Whisper ASR pipeline — see modules/asr/whisperEngine.ts.
+RUN apk add --no-cache openssl ffmpeg
 ENV NODE_ENV=production
 WORKDIR /repo
 COPY --from=build /repo/node_modules ./node_modules

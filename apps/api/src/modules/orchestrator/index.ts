@@ -43,13 +43,14 @@ export async function processInboundMessage(params: {
   guestId: string;
   conversationId: string;
   text: string;
+  mediaType?: "text" | "voice";
 }): Promise<InboundResult> {
   const message = await prisma.message.create({
     data: {
       conversationId: params.conversationId,
       direction: "inbound",
       rawText: params.text,
-      mediaType: "text",
+      mediaType: params.mediaType ?? "text",
     },
   });
 

@@ -62,24 +62,60 @@ Send a couple of maintenance complaints mentioning the same thing (e.g. "AC") an
 **Executive Report** — it surfaces a named recommendation once a pattern crosses threshold, not
 just a raw count.
 
+## Environment profiles
+
+Three distinct configurations, same codebase:
+
+| | Local dev / demo | Pilot pitch staging | Real signed pilot |
+|---|---|---|---|
+| `WHATSAPP_PROVIDER` | unset (persisted only) | `waha` (real number, no BSP wait) | `cloud_api` (required) |
+| `NLU_PROVIDER` | `rule_based` | `rule_based` or `llm` | `llm` (recommended) |
+| `ASR_PROVIDER` | unset | `whisper` if demoing voice messages | `whisper` |
+| `PMS_PROVIDER` | `mock` | `mock` | real adapter once one exists |
+| `AUTO_APPROVE_INTENTS` | empty | empty | empty until Phase 3 |
+
+`docker compose up -d` (no `--profile dev`) is the staging/pilot-safe default — it never starts
+the WAHA container, so there's no accidental path to sending real guest traffic through an
+unofficial transport. `GET /health` (proxied straight through by Caddy, same path) is a plain liveness check — point an
+uptime monitor at it once this is deployed somewhere that matters.
+
 ## What's real vs. stubbed
 
-Nothing here needs API keys or vendor accounts to run — everything that would in production
-call an external vendor is implemented behind an interface, with a working mock/rule-based
-implementation standing in. This is deliberate: the same design the architecture doc argues
-for (PMS adapter interface, pluggable IntentEngine) is what makes each of these a same-shaped
-swap later, not a rewrite.
+Nothing here *requires* API keys or vendor accounts to run — every external integration is
+implemented behind an interface, with a working mock/rule-based/self-hosted implementation
+standing in as the default. This is deliberate: the same design the architecture doc argues for
+(PMS adapter interface, pluggable IntentEngine) is what makes each of these a same-shaped swap
+later, not a rewrite.
 
-| Component | MVP implementation | Real implementation plugs in at |
+| Component | Default (no config) | Real implementation |
 |---|---|---|
-| Guest messaging | `/api/simulate` REST endpoint + a `/webhook/whatsapp` route that already parses the real WhatsApp Cloud API payload shape | `apps/api/src/modules/whatsapp/gateway.ts` — add `WHATSAPP_CLOUD_API_TOKEN` and the actual `fetch` call is a few lines |
-| NLU / intent extraction | Keyword/regex rules in `RuleBasedIntentEngine`, covering the demo intents (extend stay, clean room, maintenance issue, complaint, FAQ) in English and Arabic | `apps/api/src/modules/nlu/index.ts` — implement `IntentEngine` with an LLM call + ASR step, same `IntentEnvelope` output shape |
-| PMS | `MockPMSAdapter` — in-memory-ish, reads/writes the same `Reservation` table a real sync would populate | `apps/api/src/modules/pms/mockAdapter.ts` — implement `PMSAdapter` against Oracle OPERA / Mews, wire up via `PMS_PROVIDER` |
+| WhatsApp send/receive | Persisted only, not delivered (`WHATSAPP_PROVIDER=cloud_api` with no credentials) | `WHATSAPP_PROVIDER=cloud_api` + `WHATSAPP_CLOUD_API_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` — Meta's official Business Cloud API, the only transport a real pilot should use |
+| NLU / intent extraction | `RuleBasedIntentEngine` — keyword/regex rules covering the demo intent set, English and Arabic | `NLU_PROVIDER=llm` + `ANTHROPIC_API_KEY` — Claude-backed `LlmIntentEngine`, same `IntentEnvelope` output shape |
+| Voice message transcription | Unhandled — voice messages are acked but not processed (`ASR_PROVIDER` unset) | `ASR_PROVIDER=whisper` — self-hosted, open-weights Whisper (`@xenova/transformers`), no external account; downloads model weights on first use |
+| PMS | `MockPMSAdapter` — in-memory-ish, reads/writes the same `Reservation` table a real sync would populate | `apps/api/src/modules/pms/mockAdapter.ts` — implement `PMSAdapter` against Oracle OPERA / Mews, wire up via `PMS_PROVIDER` (not built yet — needs a real pilot's PMS to target) |
 
 Data store is already real Postgres, dev and prod alike — no swap needed there; `docker-compose.yml`'s `db` service is the same image either way, just with a stronger password and a real backup policy for a pilot.
 
 Everything downstream of these interfaces — the orchestrator, the three agent handlers, ticket
 routing, the dashboard — doesn't know or care which implementation it's talking to.
+
+### WAHA — dev/demo-only WhatsApp transport
+
+`WHATSAPP_PROVIDER=waha` swaps in a self-hosted [WAHA](https://github.com/devlikeapro/waha)
+instance instead of Meta's Cloud API. It needs no WhatsApp Business Solution Provider approval —
+useful for exercising a real WhatsApp number during local development or a pilot pitch before a
+real Business number is approved — but it drives WhatsApp through an unofficial Web-protocol
+client, not Meta's sanctioned API, and carries a real risk of the connected number being banned by
+WhatsApp at any real message volume. **Never point it at a number used for actual guest traffic.**
+A signed pilot always uses `WHATSAPP_PROVIDER=cloud_api` (the default).
+
+Start it with:
+
+```bash
+docker compose --profile dev up -d waha
+```
+
+It only runs with `--profile dev` — a default or staging `docker compose up` never starts it.
 
 ## What's deliberately not built yet
 

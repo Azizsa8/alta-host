@@ -67,6 +67,10 @@ services:
       WHATSAPP_HOOK_URL: http://api:4317/webhook/waha?propertyId=${WAHA_PROPERTY_ID:-demo-property}
       WHATSAPP_HOOK_EVENTS: message
       WAHA_API_KEY: ${WAHA_API_KEY:-}
+      # NOWEB talks the WhatsApp multi-device protocol directly instead of
+      # driving a real browser via whatsapp-web.js (the WEBJS default) —
+      # avoids WEBJS breaking every time WhatsApp Web's internal JS changes.
+      WHATSAPP_DEFAULT_ENGINE: NOWEB
     ports:
       - "${WAHA_PORT:-3210}:3000"
 

@@ -62,6 +62,15 @@ export default function App() {
     api.metrics(staff.propertyId).then(setMetrics).catch(() => {});
   }, [staff, refreshKey]);
 
+  // Live WhatsApp testing (WAHA) has no push channel to the browser, so
+  // poll for new tickets/reviews/metrics instead of waiting for a manual
+  // action — every view already refetches off refreshKey.
+  useEffect(() => {
+    if (!staff) return;
+    const id = setInterval(() => setRefreshKey((k) => k + 1), 4000);
+    return () => clearInterval(id);
+  }, [staff]);
+
   // Mirrors the template's own g-sidenav-pinned mechanism (see
   // _navbar-vertical.scss) for the mobile off-canvas sidenav — the
   // template's material-dashboard.min.js isn't loaded, so this toggle is

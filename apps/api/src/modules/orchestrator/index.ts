@@ -6,6 +6,8 @@ import { proposeGuestServiceReply, executeGuestServiceAction } from "../agents/g
 import { handleHousekeepingIntent } from "../agents/housekeepingAgent.js";
 import { queueForReview } from "../reviews/reviewService.js";
 import { emitEvent } from "../events/bus.js";
+import { isMastraOrchestrator } from "../mastra/instance.js";
+import { startIntentRun } from "../mastra/runner.js";
 import type { ExtractedIntent, Urgency } from "../nlu/types.js";
 
 const intentEngine = createIntentEngine();
@@ -93,7 +95,7 @@ export async function processInboundMessage(params: {
       },
     });
 
-    const ctx = { guestId: params.guestId, propertyId: params.propertyId, intentId: intentRecord.id };
+    const ctx = { guestId: params.guestId, propertyId: params.propertyId, intentId: intentRecord.id, conversationId: params.conversationId };
     const outcome = await dispatch(intent, ctx, envelope.urgency);
     outcomes.push(outcome);
   }
@@ -111,10 +113,28 @@ function agentKeyFor(intentType: string): string {
 
 async function dispatch(
   intent: ExtractedIntent,
-  ctx: { guestId: string; propertyId: string; intentId: string },
+  ctx: { guestId: string; propertyId: string; intentId: string; conversationId: string },
   urgency: Urgency
 ): Promise<DispatchOutcome> {
   const agentKey = agentKeyFor(intent.type);
+
+  // ORCHESTRATOR=mastra routes through the workflow runtime, where the
+  // review gate is a durable suspend() rather than a queue-and-return.
+  // The workflow emits its own agent.started/completed events.
+  if (isMastraOrchestrator()) {
+    return startIntentRun({
+      propertyId: ctx.propertyId,
+      guestId: ctx.guestId,
+      conversationId: ctx.conversationId,
+      intentId: ctx.intentId,
+      intentType: intent.type,
+      params: intent.params,
+      urgency,
+      agentKey,
+      autoApprove: AUTO_APPROVE_INTENTS.has(intent.type),
+    });
+  }
+
   await emitEvent(ctx.propertyId, {
     type: "agent.started",
     agentKey,
@@ -136,7 +156,7 @@ async function dispatch(
 
 async function dispatchInner(
   intent: ExtractedIntent,
-  ctx: { guestId: string; propertyId: string; intentId: string },
+  ctx: { guestId: string; propertyId: string; intentId: string; conversationId: string },
   urgency: Urgency
 ): Promise<DispatchOutcome> {
   switch (intent.type) {

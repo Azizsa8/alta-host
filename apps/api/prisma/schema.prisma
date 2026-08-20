@@ -143,6 +143,7 @@ model ReviewItem {
   department   String    // reception | guest_service
   draftReply   String
   pendingAction String   // JSON-encoded {type, params}
+  workflowRunId String?   // Mastra run to resume on approval; null for legacy-path rows
   status       String    @default("pending") // pending | approved | rejected
   reviewedBy   String?
   createdAt    DateTime  @default(now())

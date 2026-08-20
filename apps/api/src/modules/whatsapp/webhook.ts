@@ -2,7 +2,9 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../db.js";
 import { logger } from "../../logger.js";
+import { randomUUID } from "node:crypto";
 import { resolveConversation, sendWhatsAppMessage } from "./gateway.js";
+import { enqueueInbound } from "../ingest/queue.js";
 import { processInboundMessage } from "../orchestrator/index.js";
 import { createASREngine } from "../asr/index.js";
 
@@ -56,6 +58,7 @@ const InboundPayload = z.object({
 // we can still ack them cleanly without processing them.
 const WhatsAppMessage = z
   .object({
+    id: z.string().optional(), // Meta's message id — the redelivery-dedupe key
     from: z.string().optional(),
     type: z.string(),
     text: z.object({ body: z.string() }).optional(),
@@ -192,14 +195,23 @@ whatsappRouter.post("/webhook/whatsapp", async (req, res) => {
       return;
     }
 
-    const propertyId = entry?.metadata?.property_id ?? req.query.propertyId;
-    const result = await handleInbound({
-      propertyId: String(propertyId),
-      from: message.from,
+    const propertyId = String(entry?.metadata?.property_id ?? req.query.propertyId);
+    // Resolve the conversation now (cheap upserts), then hand the heavy
+    // pipeline to the queue — the webhook acks in well under Meta's timeout
+    // and redeliveries dedupe on the transport message id.
+    const { guest, conversation } = await resolveConversation({
+      propertyId,
+      whatsappId: message.from,
+    });
+    await enqueueInbound({
+      propertyId,
+      guestId: guest.id,
+      conversationId: conversation.id,
       text,
       mediaType,
+      dedupeKey: message.id ?? randomUUID(),
     });
-    res.status(200).json(result);
+    res.sendStatus(200);
   } catch (err) {
     logger.error({ err }, "webhook error");
     res.sendStatus(500);
@@ -213,6 +225,7 @@ whatsappRouter.post("/webhook/whatsapp", async (req, res) => {
 // acks, etc.) this system doesn't process.
 const WahaPayload = z
   .object({
+    id: z.string().optional(), // WAHA's message id — the redelivery-dedupe key
     from: z.string().optional(),
     fromMe: z.boolean().optional(),
     body: z.string().optional(),
@@ -276,14 +289,20 @@ whatsappRouter.post("/webhook/waha", async (req, res) => {
       return;
     }
 
-    const propertyId = req.query.propertyId;
-    const result = await handleInbound({
-      propertyId: String(propertyId),
-      from: payload.from.replace(/@c\.us$/, ""),
+    const propertyId = String(req.query.propertyId);
+    const { guest, conversation } = await resolveConversation({
+      propertyId,
+      whatsappId: payload.from.replace(/@c\.us$/, ""),
+    });
+    await enqueueInbound({
+      propertyId,
+      guestId: guest.id,
+      conversationId: conversation.id,
       text,
       mediaType,
+      dedupeKey: payload.id ?? randomUUID(),
     });
-    res.status(200).json(result);
+    res.sendStatus(200);
   } catch (err) {
     logger.error({ err }, "waha webhook error");
     res.sendStatus(500);

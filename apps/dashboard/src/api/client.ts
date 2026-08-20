@@ -193,4 +193,22 @@ export const api = {
   rejectReview: (id: string) =>
     request<ReviewItem>(`/reviews/${id}`, { method: "PATCH", body: JSON.stringify({ action: "reject" }) }),
   dailyReport: (propertyId: string) => request<DailyReport>(`/reports/daily?propertyId=${propertyId}`),
+  agents: () => request<AgentDefinition[]>("/agents"),
+  recentEvents: (limit = 60) => request<LiveEvent[]>(`/events/recent?limit=${limit}`),
 };
+
+/** One agent's declarative config from the backend registry — what the
+ *  Operations Center renders as a node, and what the fleet inspector shows. */
+export interface AgentDefinition {
+  key: string;
+  name: string;
+  nameAr: string;
+  department: string;
+  role: string;
+  roleAr: string;
+  riskLevel: "low" | "guest_facing";
+  reviewPolicy: "immediate" | "human_review";
+  handlesIntents: string[];
+  tools: string[];
+  parent?: string;
+}

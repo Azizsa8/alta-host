@@ -1,0 +1,401 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ReactFlow,
+  Background,
+  BackgroundVariant,
+  Controls,
+  Handle,
+  Position,
+  type Edge,
+  type Node,
+  type NodeProps,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import { api, eventStream, type AgentDefinition, type LiveEvent } from "../api/client.js";
+
+/* ===========================================================
+   The live fleet view. Agent nodes come from the backend
+   registry (/api/agents) so the picture can never drift from
+   the configuration that actually routes traffic; the pulses
+   come from the same SSE feed the rest of the dashboard uses.
+   =========================================================== */
+
+/** How long a node stays visually "hot" after its last event. */
+const ACTIVE_MS = 2600;
+
+type NodeState = "idle" | "active" | "waiting" | "done";
+
+interface AgentNodeData extends Record<string, unknown> {
+  label: string;
+  sublabel: string;
+  state: NodeState;
+  count: number;
+  reviewPolicy?: AgentDefinition["reviewPolicy"];
+  kind: "guest" | "supervisor" | "agent" | "sink";
+}
+
+const STATE_COLORS: Record<NodeState, { border: string; glow: string; chip: string }> = {
+  idle: { border: "#d8dce6", glow: "none", chip: "#9aa3b5" },
+  active: { border: "#ec407a", glow: "0 0 0 6px rgba(236,64,122,.16)", chip: "#ec407a" },
+  waiting: { border: "#fb8c00", glow: "0 0 0 6px rgba(251,140,0,.16)", chip: "#fb8c00" },
+  done: { border: "#43a047", glow: "0 0 0 6px rgba(67,160,71,.14)", chip: "#43a047" },
+};
+
+const STATE_LABEL_AR: Record<NodeState, string> = {
+  idle: "خامل",
+  active: "يعمل الآن",
+  waiting: "بانتظار المراجعة",
+  done: "اكتمل",
+};
+
+function AgentNode({ data }: NodeProps) {
+  const d = data as AgentNodeData;
+  const c = STATE_COLORS[d.state];
+  return (
+    <div
+      style={{
+        minWidth: 190,
+        background: "#fff",
+        border: `2px solid ${c.border}`,
+        boxShadow: c.glow === "none" ? "0 2px 10px rgba(20,22,40,.06)" : c.glow,
+        borderRadius: 14,
+        padding: "12px 14px",
+        transition: "border-color .25s ease, box-shadow .25s ease",
+        direction: "rtl",
+        textAlign: "right",
+      }}
+    >
+      <Handle type="target" position={Position.Right} style={{ opacity: 0 }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
+        <span style={{ fontWeight: 700, fontSize: 14, color: "#344767" }}>{d.label}</span>
+        {d.count > 0 && (
+          <span
+            className="mono"
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: "#fff",
+              background: c.chip,
+              borderRadius: 999,
+              padding: "1px 7px",
+              minWidth: 18,
+              textAlign: "center",
+            }}
+          >
+            {d.count}
+          </span>
+        )}
+      </div>
+      <div style={{ fontSize: 11, color: "#7b809a", marginTop: 3 }}>{d.sublabel}</div>
+      <div style={{ display: "flex", gap: 5, marginTop: 7, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: c.chip }}>{STATE_LABEL_AR[d.state]}</span>
+        {d.reviewPolicy === "human_review" && (
+          <span style={{ fontSize: 10, color: "#8a5a10", background: "#fdf3e3", borderRadius: 4, padding: "0 5px" }}>
+            مراجعة بشرية
+          </span>
+        )}
+      </div>
+      <Handle type="source" position={Position.Left} style={{ opacity: 0 }} />
+    </div>
+  );
+}
+
+const nodeTypes = { agent: AgentNode };
+
+/** Human-readable Arabic line for the activity ticker. */
+function describe(evt: LiveEvent): string {
+  const p = evt.payload as Record<string, unknown>;
+  switch (evt.type) {
+    case "message.received":
+      return `رسالة واردة: "${String(p.preview ?? "").slice(0, 60)}"`;
+    case "intent.extracted": {
+      const list = (p.intents as Array<{ type: string }> | undefined) ?? [];
+      return `استخراج ${list.length} نية — ${list.map((i) => i.type).join("، ") || "لا شيء"}`;
+    }
+    case "agent.started":
+      return `بدأ ${String(p.agentKey)} على ${String(p.intentType)}`;
+    case "agent.completed":
+      return `أنهى ${String(p.agentKey)} — ${p.outcome === "sent" ? "أُرسل" : "بانتظار المراجعة"}`;
+    case "review.queued":
+      return `طلب من ${String(p.department)} ينتظر موافقة بشرية`;
+    case "review.decided":
+      return `${p.decision === "approved" ? "وافق" : "رفض"} ${String(p.reviewedBy)} على الطلب`;
+    case "ticket.created":
+      return `تذكرة جديدة (${String(p.department)}): ${String(p.summary ?? "").slice(0, 50)}`;
+    case "ticket.escalated":
+      return `تصعيد تذكرة في ${String(p.department)} — تجاوزت المهلة`;
+    default:
+      return evt.type;
+  }
+}
+
+/** Which node an event should light up. */
+function nodeForEvent(evt: LiveEvent): { id: string; state: NodeState } | null {
+  const p = evt.payload as Record<string, unknown>;
+  switch (evt.type) {
+    case "message.received":
+      return { id: "guest", state: "active" };
+    case "intent.extracted":
+      return { id: "concierge_supervisor", state: "active" };
+    case "agent.started":
+      return { id: String(p.agentKey), state: "active" };
+    case "agent.completed":
+      return { id: String(p.agentKey), state: "done" };
+    case "review.queued":
+      return { id: "review", state: "waiting" };
+    case "review.decided":
+      return { id: "review", state: "done" };
+    case "ticket.created":
+    case "ticket.escalated":
+      return { id: "tickets", state: evt.type === "ticket.escalated" ? "waiting" : "done" };
+    default:
+      return null;
+  }
+}
+
+export function OpsCenter({ propertyId }: { propertyId: string }) {
+  const [agents, setAgents] = useState<AgentDefinition[]>([]);
+  const [feed, setFeed] = useState<LiveEvent[]>([]);
+  const [states, setStates] = useState<Record<string, NodeState>>({});
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [selected, setSelected] = useState<AgentDefinition | null>(null);
+  const [live, setLive] = useState(true);
+  const timers = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    api.agents().then(setAgents).catch(() => {});
+    api.recentEvents(60).then((evts) => setFeed(evts.reverse())).catch(() => {});
+  }, [propertyId]);
+
+  /** Light a node up, then let it fade back to idle on its own. */
+  const pulse = useCallback((id: string, state: NodeState) => {
+    setStates((prev) => ({ ...prev, [id]: state }));
+    setCounts((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
+    window.clearTimeout(timers.current[id]);
+    // "waiting" persists — a pending human decision is a real standing
+    // state, not a momentary flash like an agent finishing its work.
+    if (state !== "waiting") {
+      timers.current[id] = window.setTimeout(() => {
+        setStates((prev) => ({ ...prev, [id]: "idle" }));
+      }, ACTIVE_MS);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!live) return;
+    return eventStream((evt) => {
+      setFeed((prev) => [evt, ...prev].slice(0, 120));
+      const target = nodeForEvent(evt);
+      if (target) pulse(target.id, target.state);
+    });
+  }, [live, pulse]);
+
+  const nodes = useMemo<Node<AgentNodeData>[]>(() => {
+    const specialists = agents.filter((a) => a.department !== "supervisor");
+    // RTL reading order: guest on the right, flow leftwards.
+    const built: Node<AgentNodeData>[] = [
+      {
+        id: "guest",
+        type: "agent",
+        position: { x: 640, y: 200 },
+        data: {
+          label: "النزيل",
+          sublabel: "واتساب",
+          state: states.guest ?? "idle",
+          count: counts.guest ?? 0,
+          kind: "guest",
+        },
+      },
+      {
+        id: "concierge_supervisor",
+        type: "agent",
+        position: { x: 380, y: 200 },
+        data: {
+          label: "المنسّق الرئيسي",
+          sublabel: "استخراج النية والتوجيه",
+          state: states.concierge_supervisor ?? "idle",
+          count: counts.concierge_supervisor ?? 0,
+          kind: "supervisor",
+        },
+      },
+    ];
+    specialists.forEach((a, i) => {
+      built.push({
+        id: a.key,
+        type: "agent",
+        position: { x: 100, y: 40 + i * 108 },
+        data: {
+          label: a.nameAr,
+          sublabel: a.handlesIntents.join("، "),
+          state: states[a.key] ?? "idle",
+          count: counts[a.key] ?? 0,
+          reviewPolicy: a.reviewPolicy,
+          kind: "agent",
+        },
+      });
+    });
+    built.push(
+      {
+        id: "review",
+        type: "agent",
+        position: { x: -190, y: 90 },
+        data: {
+          label: "قائمة المراجعة",
+          sublabel: "قرار بشري قبل الإرسال",
+          state: states.review ?? "idle",
+          count: counts.review ?? 0,
+          kind: "sink",
+        },
+      },
+      {
+        id: "tickets",
+        type: "agent",
+        position: { x: -190, y: 260 },
+        data: {
+          label: "التذاكر والتصعيد",
+          sublabel: "مهلة استجابة لكل قسم",
+          state: states.tickets ?? "idle",
+          count: counts.tickets ?? 0,
+          kind: "sink",
+        },
+      }
+    );
+    return built;
+  }, [agents, states, counts]);
+
+  const edges = useMemo<Edge[]>(() => {
+    const isHot = (id: string) => (states[id] ?? "idle") !== "idle";
+    const e: Edge[] = [
+      {
+        id: "guest-sup",
+        source: "guest",
+        target: "concierge_supervisor",
+        animated: isHot("concierge_supervisor") || isHot("guest"),
+        style: { stroke: isHot("concierge_supervisor") ? "#ec407a" : "#c9cfdd", strokeWidth: 2 },
+      },
+    ];
+    agents
+      .filter((a) => a.department !== "supervisor")
+      .forEach((a) => {
+        e.push({
+          id: `sup-${a.key}`,
+          source: "concierge_supervisor",
+          target: a.key,
+          animated: isHot(a.key),
+          style: { stroke: isHot(a.key) ? "#ec407a" : "#c9cfdd", strokeWidth: 2 },
+        });
+        e.push({
+          id: `${a.key}-out`,
+          source: a.key,
+          target: a.reviewPolicy === "human_review" ? "review" : "tickets",
+          animated: isHot(a.key),
+          style: {
+            stroke: a.reviewPolicy === "human_review" ? "#fb8c00" : "#43a047",
+            strokeWidth: 2,
+            opacity: isHot(a.key) ? 1 : 0.45,
+          },
+        });
+      });
+    return e;
+  }, [agents, states]);
+
+  const activeCount = Object.values(states).filter((s) => s === "active").length;
+  const waitingCount = Object.values(states).filter((s) => s === "waiting").length;
+
+  return (
+    <div className="row">
+      <div className="col-lg-8 mb-4">
+        <div className="card">
+          <div className="card-header pb-0 d-flex justify-content-between align-items-center">
+            <div>
+              <h6 className="mb-0">مركز العمليات الحيّ</h6>
+              <p className="text-sm text-secondary mb-0">
+                كل وكيل يضيء لحظة عمله فعليًا — مصدر البيانات هو نفسه سجل النظام، لا محاكاة.
+              </p>
+            </div>
+            <button
+              className={`btn btn-sm mb-0 ${live ? "bg-gradient-primary" : "btn-outline-secondary"}`}
+              onClick={() => setLive((v) => !v)}
+            >
+              {live ? "● مباشر" : "متوقف"}
+            </button>
+          </div>
+          <div className="card-body pt-3">
+            <div style={{ height: 470, borderRadius: 12, overflow: "hidden", background: "#f7f8fc" }}>
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                nodeTypes={nodeTypes}
+                fitView
+                proOptions={{ hideAttribution: true }}
+                onNodeClick={(_, n) => {
+                  const found = agents.find((a) => a.key === n.id);
+                  setSelected(found ?? null);
+                }}
+              >
+                <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="#dfe3ee" />
+                <Controls showInteractive={false} position="bottom-left" />
+              </ReactFlow>
+            </div>
+            <div className="d-flex gap-4 mt-3 text-xs text-secondary">
+              <span>وكلاء نشطون: <b className="mono">{activeCount}</b></span>
+              <span>بانتظار قرار بشري: <b className="mono">{waitingCount}</b></span>
+              <span>أحداث مستلمة: <b className="mono">{feed.length}</b></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="col-lg-4 mb-4">
+        {selected && (
+          <div className="card mb-3">
+            <div className="card-header pb-0 d-flex justify-content-between align-items-start">
+              <div>
+                <h6 className="mb-0">{selected.nameAr}</h6>
+                <p className="text-xs text-secondary mb-0 mono">{selected.key}</p>
+              </div>
+              <button className="btn btn-link p-0 mb-0 text-secondary" onClick={() => setSelected(null)}>
+                ✕
+              </button>
+            </div>
+            <div className="card-body pt-2">
+              <p className="text-sm mb-2">{selected.roleAr}</p>
+              <p className="text-xs text-secondary mb-1">
+                <b>السياسة:</b>{" "}
+                {selected.reviewPolicy === "human_review" ? "ينتظر موافقة بشرية" : "تنفيذ فوري"}
+              </p>
+              <p className="text-xs text-secondary mb-1">
+                <b>النوايا:</b> <span className="mono">{selected.handlesIntents.join(", ")}</span>
+              </p>
+              <p className="text-xs text-secondary mb-0">
+                <b>الأدوات:</b> <span className="mono">{selected.tools.join(", ")}</span>
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="card">
+          <div className="card-header pb-0">
+            <h6 className="mb-0">سجل النشاط الحيّ</h6>
+            <p className="text-sm text-secondary mb-0">أحدث الأحداث أولاً</p>
+          </div>
+          <div className="card-body pt-2" style={{ maxHeight: 470, overflowY: "auto" }}>
+            {feed.length === 0 && <p className="text-sm text-secondary">لا يوجد نشاط بعد.</p>}
+            {feed.map((evt) => (
+              <div key={evt.seq} className="d-flex gap-2 py-2 border-bottom">
+                <span className="text-xs text-secondary mono" style={{ minWidth: 58 }}>
+                  {new Date(evt.createdAt).toLocaleTimeString("ar-SA", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}
+                </span>
+                <span className="text-sm">{describe(evt)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

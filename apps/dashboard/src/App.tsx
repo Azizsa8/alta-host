@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import { api, eventStream, getToken, onUnauthorized, type Metrics, type Staff } from "./api/client.js";
 import { Login } from "./pages/Login.js";
+import { OpsCenter } from "./pages/OpsCenter.js";
 import { Simulator } from "./pages/Simulator.js";
 import { TicketBoard } from "./pages/TicketBoard.js";
 import { Guests } from "./pages/Guests.js";
 import { ReviewQueue } from "./pages/ReviewQueue.js";
 import { ExecutiveReport } from "./pages/ExecutiveReport.js";
 
-type View = "simulator" | "reviews" | "tickets" | "guests" | "report";
+type View = "ops" | "simulator" | "reviews" | "tickets" | "guests" | "report";
 
 const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
+  { key: "ops", label: "مركز العمليات", icon: "hub" },
   { key: "simulator", label: "المحاكي", icon: "chat" },
   { key: "reviews", label: "قائمة المراجعة", icon: "fact_check" },
   { key: "tickets", label: "لوحة التذاكر", icon: "confirmation_number" },
@@ -18,6 +20,7 @@ const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
 ];
 
 const VIEW_TITLES: Record<View, string> = {
+  ops: "مركز العمليات",
   simulator: "المحاكي",
   reviews: "قائمة المراجعة",
   tickets: "لوحة التذاكر",
@@ -35,7 +38,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function App() {
   const [staff, setStaff] = useState<Staff | null | undefined>(undefined); // undefined = still checking
-  const [view, setView] = useState<View>("simulator");
+  const [view, setView] = useState<View>("ops");
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [sidenavPinned, setSidenavPinned] = useState(false);
@@ -213,6 +216,7 @@ export default function App() {
           </div>
         </nav>
         <div className="container-fluid py-4">
+          {view === "ops" && <OpsCenter propertyId={staff.propertyId} />}
           {view === "simulator" && <Simulator propertyId={staff.propertyId} onDispatched={bumpRefresh} />}
           {view === "reviews" && <ReviewQueue propertyId={staff.propertyId} refreshKey={refreshKey} onChanged={bumpRefresh} />}
           {view === "tickets" && <TicketBoard propertyId={staff.propertyId} refreshKey={refreshKey} onChanged={bumpRefresh} />}

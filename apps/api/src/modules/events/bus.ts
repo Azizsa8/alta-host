@@ -20,9 +20,15 @@ export async function emitEvent(propertyId: string, body: AltaEventBody): Promis
     payload: body,
     createdAt: row.createdAt.toISOString(),
   };
-  try {
-    await getRedis().publish(EVENTS_CHANNEL, JSON.stringify(published));
-  } catch (err) {
-    logger.warn({ err, type: body.type }, "event publish failed (persisted; live feed will catch up on reconnect)");
-  }
+  // Deliberately not awaited. The row above is the source of truth and is
+  // already committed; this publish only accelerates delivery to connected
+  // dashboards. Awaiting it put a Redis round-trip on the pipeline's
+  // critical path for every one of the 5+ events a single message emits.
+  // A publish still in flight when the process exits costs nothing — a
+  // reconnecting client replays from Postgres via Last-Event-ID.
+  getRedis()
+    .publish(EVENTS_CHANNEL, JSON.stringify(published))
+    .catch((err) =>
+      logger.warn({ err, type: body.type }, "event publish failed (persisted; live feed will catch up on reconnect)")
+    );
 }

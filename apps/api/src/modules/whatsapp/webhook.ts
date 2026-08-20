@@ -196,17 +196,12 @@ whatsappRouter.post("/webhook/whatsapp", async (req, res) => {
     }
 
     const propertyId = String(entry?.metadata?.property_id ?? req.query.propertyId);
-    // Resolve the conversation now (cheap upserts), then hand the heavy
-    // pipeline to the queue — the webhook acks in well under Meta's timeout
-    // and redeliveries dedupe on the transport message id.
-    const { guest, conversation } = await resolveConversation({
-      propertyId,
-      whatsappId: message.from,
-    });
+    // Enqueue and ack — no database work on this path. Guest/conversation
+    // resolution happens in the worker; redeliveries dedupe on the
+    // transport message id.
     await enqueueInbound({
       propertyId,
-      guestId: guest.id,
-      conversationId: conversation.id,
+      whatsappId: message.from,
       text,
       mediaType,
       dedupeKey: message.id ?? randomUUID(),
@@ -290,14 +285,9 @@ whatsappRouter.post("/webhook/waha", async (req, res) => {
     }
 
     const propertyId = String(req.query.propertyId);
-    const { guest, conversation } = await resolveConversation({
-      propertyId,
-      whatsappId: payload.from.replace(/@c\.us$/, ""),
-    });
     await enqueueInbound({
       propertyId,
-      guestId: guest.id,
-      conversationId: conversation.id,
+      whatsappId: payload.from.replace(/@c\.us$/, ""),
       text,
       mediaType,
       dedupeKey: payload.id ?? randomUUID(),

@@ -70,7 +70,18 @@ export function startIngestWorker(): Worker<InboundJob> {
         }
       }
     },
-    { connection: createRedisConnection(), concurrency: 5 }
+    {
+      connection: createRedisConnection(),
+      // Measured on this stack with scripts/load-test.mts (200 messages,
+      // 40-way client concurrency). End-to-end throughput / drain time:
+      //    5 →  8.0 msg/s, 25.1s
+      //   20 → 28.5 msg/s,  7.0s   ← knee
+      //   50 → 24.9 msg/s,  8.0s
+      // Past ~20 the workers contend with the webhook handler for the same
+      // Postgres pool: throughput falls AND ack latency degrades (p50
+      // 49ms → 198ms). Re-measure before raising this on different hardware.
+      concurrency: Number(process.env.INGEST_CONCURRENCY ?? 20),
+    }
   );
   worker.on("failed", (job, err) => logger.error({ jobId: job?.id, err }, "inbound job failed"));
   return worker;

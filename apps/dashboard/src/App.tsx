@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, getToken, onUnauthorized, type Metrics, type Staff } from "./api/client.js";
+import { api, eventStream, getToken, onUnauthorized, type Metrics, type Staff } from "./api/client.js";
 import { Login } from "./pages/Login.js";
 import { Simulator } from "./pages/Simulator.js";
 import { TicketBoard } from "./pages/TicketBoard.js";
@@ -62,13 +62,12 @@ export default function App() {
     api.metrics(staff.propertyId).then(setMetrics).catch(() => {});
   }, [staff, refreshKey]);
 
-  // Live WhatsApp testing (WAHA) has no push channel to the browser, so
-  // poll for new tickets/reviews/metrics instead of waiting for a manual
-  // action — every view already refetches off refreshKey.
+  // Live event feed: any pipeline event refreshes the visible view — SSE
+  // replaced the old 4s polling entirely. EventSource auto-reconnects and
+  // the server replays missed events via Last-Event-ID.
   useEffect(() => {
     if (!staff) return;
-    const id = setInterval(() => setRefreshKey((k) => k + 1), 4000);
-    return () => clearInterval(id);
+    return eventStream(() => setRefreshKey((k) => k + 1));
   }, [staff]);
 
   // Mirrors the template's own g-sidenav-pinned mechanism (see

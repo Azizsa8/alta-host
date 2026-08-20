@@ -7,6 +7,7 @@ import { approveReview, rejectReview } from "../reviews/reviewOrchestrator.js";
 import { generateDailyReport } from "../reports/dailyReport.js";
 import { applyPendingEscalations } from "../tickets/ticketService.js";
 import { requireAuth } from "../auth/middleware.js";
+import { AGENT_REGISTRY } from "../agents/registry.js";
 
 export const apiRouter = Router();
 // Everything in this router is dashboard/staff-facing — /auth/login and
@@ -81,6 +82,35 @@ apiRouter.get(
   asyncRoute(async (_req, res) => {
     const properties = await prisma.property.findMany();
     res.json(properties);
+  })
+);
+
+// The agent fleet's declarative configuration — what the Operations
+// Center renders as "every agent, its role, tools, and review policy".
+apiRouter.get("/agents", (_req, res) => {
+  res.json(AGENT_REGISTRY);
+});
+
+// Latest domain events for the ops feed's initial paint — the live tail
+// arrives over /api/events/stream (SSE) afterwards.
+apiRouter.get(
+  "/events/recent",
+  asyncRoute(async (req, res) => {
+    const limit = Math.min(Number(req.query.limit ?? 50) || 50, 200);
+    const rows = await prisma.altaEvent.findMany({
+      where: { propertyId: req.staff!.propertyId },
+      orderBy: { seq: "desc" },
+      take: limit,
+    });
+    res.json(
+      rows.reverse().map((row) => ({
+        seq: row.seq.toString(),
+        propertyId: row.propertyId,
+        type: row.type,
+        payload: JSON.parse(row.payload),
+        createdAt: row.createdAt.toISOString(),
+      }))
+    );
   })
 );
 

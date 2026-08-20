@@ -4,6 +4,7 @@ import { executeGuestServiceAction } from "../agents/guestServiceAgent.js";
 import { sendWhatsAppMessage } from "../whatsapp/gateway.js";
 import { getReviewItem, markReviewed, type PendingAction } from "./reviewService.js";
 import { prisma } from "../../db.js";
+import { emitEvent } from "../events/bus.js";
 import type { Urgency } from "../nlu/types.js";
 
 const pms = createPMSAdapter();
@@ -39,7 +40,14 @@ export async function approveReview(id: string, editedReply?: string, reviewedBy
     await sendWhatsAppMessage(conversation.id, editedReply?.trim() || item.draftReply);
   }
 
-  return markReviewed(id, "approved", reviewedBy);
+  const result = await markReviewed(id, "approved", reviewedBy);
+  await emitEvent(propertyId, {
+    type: "review.decided",
+    reviewItemId: id,
+    decision: "approved",
+    reviewedBy: reviewedBy ?? "unknown",
+  });
+  return result;
 }
 
 /** Rejects a queued reply — nothing is sent, no PMS mutation ever occurs. */
@@ -48,5 +56,12 @@ export async function rejectReview(id: string, reviewedBy?: string) {
   if (item.status !== "pending") {
     throw new Error(`review item ${id} is already ${item.status}`);
   }
-  return markReviewed(id, "rejected", reviewedBy);
+  const result = await markReviewed(id, "rejected", reviewedBy);
+  await emitEvent(item.intent.message.conversation.guest.propertyId, {
+    type: "review.decided",
+    reviewItemId: id,
+    decision: "rejected",
+    reviewedBy: reviewedBy ?? "unknown",
+  });
+  return result;
 }

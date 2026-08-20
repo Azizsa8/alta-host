@@ -8,6 +8,8 @@ import { logger } from "./logger.js";
 import { whatsappRouter } from "./modules/whatsapp/webhook.js";
 import { apiRouter } from "./modules/api/routes.js";
 import { authRouter } from "./modules/auth/routes.js";
+import { sseRouter } from "./modules/events/sse.js";
+import { startIngestWorker } from "./modules/ingest/queue.js";
 
 const app = express();
 // Deployed behind exactly one reverse proxy (Caddy, see infra/web/Caddyfile /
@@ -60,9 +62,18 @@ app.use(whatsappRouter);
 // middleware (see modules/api/routes.ts) — login/me must stay reachable
 // without a token already in hand.
 app.use("/api", authRouter);
+// SSE live feed — one long-lived request per dashboard, auth'd via the
+// same staff JWT (as ?token=, since EventSource can't set headers).
+app.use("/api", sseRouter);
 app.use("/api", apiRouter);
 
 const port = Number(process.env.PORT ?? 4317);
 app.listen(port, () => {
   logger.info(`ALTA API listening on http://localhost:${port}`);
 });
+
+// Inbound-message worker runs in-process for now — same container, so a
+// deploy scales both together. Split into its own service when webhook
+// volume outgrows one process.
+startIngestWorker();
+logger.info("ingest worker started");

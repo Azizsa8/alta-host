@@ -16,6 +16,20 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - alta-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   api:
     build:
       context: .
@@ -24,8 +38,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-alta}:${POSTGRES_PASSWORD:-devpassword}@db:5432/${POSTGRES_DB:-alta}
+      REDIS_URL: redis://redis:6379
       PORT: 4317
       WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER:-cloud_api}
       WHATSAPP_CLOUD_API_TOKEN: ${WHATSAPP_CLOUD_API_TOKEN:-}
@@ -89,3 +106,4 @@ services:
 
 volumes:
   alta-db-data:
+  alta-redis-data:

@@ -1,4 +1,5 @@
 import { prisma } from "../../db.js";
+import { emitEvent } from "../events/bus.js";
 
 // FR-10 SLA windows (minutes from ticket creation), by department x urgency.
 // Guest-facing departments get the tightest windows; urgent tickets get
@@ -51,6 +52,14 @@ export async function createTicket(params: {
     },
   });
 
+  await emitEvent(params.propertyId, {
+    type: "ticket.created",
+    ticketId: ticket.id,
+    department: params.department,
+    urgency: params.urgency,
+    summary: params.summary,
+  });
+
   return ticket;
 }
 
@@ -64,8 +73,29 @@ export async function logAgentAction(ticketId: string, agent: string, action: st
 // repeated calls (every /tickets or /metrics read) never overwrite it or
 // re-fire a downstream notification for the same breach.
 export async function applyPendingEscalations() {
-  await prisma.ticket.updateMany({
+  // Select-then-update so each newly-escalated ticket can emit its event
+  // with the owning property (reachable only via the intent→guest chain).
+  // The escalatedAt: null filter still guarantees exactly-once flagging.
+  const breaching = await prisma.ticket.findMany({
     where: { status: "open", slaDeadline: { lt: new Date() }, escalatedAt: null },
+    include: {
+      intent: {
+        include: { message: { include: { conversation: { include: { guest: true } } } } },
+      },
+    },
+  });
+  if (breaching.length === 0) return;
+
+  await prisma.ticket.updateMany({
+    where: { id: { in: breaching.map((t) => t.id) }, escalatedAt: null },
     data: { escalatedAt: new Date() },
   });
+
+  for (const ticket of breaching) {
+    await emitEvent(ticket.intent.message.conversation.guest.propertyId, {
+      type: "ticket.escalated",
+      ticketId: ticket.id,
+      department: ticket.department,
+    });
+  }
 }

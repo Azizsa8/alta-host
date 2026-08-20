@@ -49,6 +49,9 @@ async function main() {
     { name: "Noura (Housekeeping)", role: "housekeeping", username: "noura" },
     { name: "Salem (Maintenance)", role: "maintenance", username: "salem" },
     { name: "Layla (Guest Service)", role: "guest_service", username: "layla" },
+    // A manager is required, not decorative: credential management is
+    // gated to this role, so without one the vault is unusable.
+    { name: "Reem (Manager)", role: "manager", username: "reem" },
   ];
 
   for (const s of staffRoles) {
@@ -113,6 +116,7 @@ async function main() {
     { name: "Mona (Housekeeping)", role: "housekeeping", username: "mona" },
     { name: "Yousef (Maintenance)", role: "maintenance", username: "yousef" },
     { name: "Huda (Guest Service)", role: "guest_service", username: "huda" },
+    { name: "Omar (Manager)", role: "manager", username: "omar" },
   ];
 
   for (const s of staffRoles2) {

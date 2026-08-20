@@ -9,6 +9,7 @@ import { applyPendingEscalations } from "../tickets/ticketService.js";
 import { requireAuth } from "../auth/middleware.js";
 import { AGENT_REGISTRY } from "../agents/registry.js";
 import { recordAudit, auditContextFrom, verifyAuditChain } from "../audit/service.js";
+import { listCredentials, setCredential, deleteCredential, CREDENTIAL_KEYS } from "../credentials/service.js";
 
 export const apiRouter = Router();
 // Everything in this router is dashboard/staff-facing — /auth/login and
@@ -137,6 +138,58 @@ apiRouter.get(
   "/audit/verify",
   asyncRoute(async (_req, res) => {
     res.json(await verifyAuditChain());
+  })
+);
+
+// ---- credential vault -------------------------------------------------
+// Lists which credentials this property has configured. Deliberately
+// never returns a value: there is no read-back endpoint at all, because
+// an API that can return a secret is an API that can leak one.
+apiRouter.get(
+  "/credentials",
+  asyncRoute(async (req, res) => {
+    res.json(await listCredentials(req.staff!.propertyId));
+  })
+);
+
+const CredentialPayload = z.object({
+  key: z.enum(CREDENTIAL_KEYS),
+  value: z.string().min(1),
+});
+
+// Stores or rotates a credential. Managers only — a receptionist has no
+// business holding the property's PMS tokens.
+apiRouter.put(
+  "/credentials",
+  asyncRoute(async (req, res) => {
+    if (req.staff!.role !== "manager") {
+      res.status(403).json({ error: "only managers can manage credentials" });
+      return;
+    }
+    const payload = CredentialPayload.parse(req.body);
+    await setCredential({
+      propertyId: req.staff!.propertyId,
+      key: payload.key,
+      value: payload.value,
+      actor: auditContextFrom(req),
+    });
+    res.status(204).end();
+  })
+);
+
+apiRouter.delete(
+  "/credentials/:key",
+  asyncRoute(async (req, res) => {
+    if (req.staff!.role !== "manager") {
+      res.status(403).json({ error: "only managers can manage credentials" });
+      return;
+    }
+    const removed = await deleteCredential({
+      propertyId: req.staff!.propertyId,
+      key: req.params.key,
+      actor: auditContextFrom(req),
+    });
+    res.status(removed ? 204 : 404).end();
   })
 );
 

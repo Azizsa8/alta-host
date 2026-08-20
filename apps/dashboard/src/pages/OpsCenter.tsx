@@ -33,7 +33,7 @@ interface AgentNodeData extends Record<string, unknown> {
   state: NodeState;
   count: number;
   reviewPolicy?: AgentDefinition["reviewPolicy"];
-  kind: "guest" | "supervisor" | "agent" | "sink";
+  kind: "guest" | "supervisor" | "agent" | "sub" | "sink";
 }
 
 const STATE_COLORS: Record<NodeState, { border: string; glow: string; chip: string }> = {
@@ -56,7 +56,8 @@ function AgentNode({ data }: NodeProps) {
   return (
     <div
       style={{
-        minWidth: 190,
+        minWidth: d.kind === "sub" ? 150 : 190,
+        opacity: d.kind === "sub" ? 0.95 : 1,
         background: "#fff",
         border: `2px solid ${c.border}`,
         boxShadow: c.glow === "none" ? "0 2px 10px rgba(20,22,40,.06)" : c.glow,
@@ -69,7 +70,10 @@ function AgentNode({ data }: NodeProps) {
     >
       <Handle type="target" position={Position.Right} style={{ opacity: 0 }} />
       <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
-        <span style={{ fontWeight: 700, fontSize: 14, color: "#344767" }}>{d.label}</span>
+        <span style={{ fontWeight: d.kind === "sub" ? 500 : 700, fontSize: d.kind === "sub" ? 12 : 14, color: "#344767" }}>
+          {d.kind === "sub" ? "↳ " : ""}
+          {d.label}
+        </span>
         {d.count > 0 && (
           <span
             className="mono"
@@ -122,6 +126,12 @@ function describe(evt: LiveEvent): string {
       return `طلب من ${String(p.department)} ينتظر موافقة بشرية`;
     case "review.decided":
       return `${p.decision === "approved" ? "وافق" : "رفض"} ${String(p.reviewedBy)} على الطلب`;
+    case "subagent.started":
+      return `↳ ${String(p.agentKey)} يفحص…`;
+    case "subagent.completed":
+      return p.outcome === "blocked"
+        ? `↳ ${String(p.agentKey)} أوقف الطلب — ${String(p.detail ?? "")}`
+        : `↳ ${String(p.agentKey)} تم — ${String(p.detail ?? "سليم")}`;
     case "ticket.created":
       return `تذكرة جديدة (${String(p.department)}): ${String(p.summary ?? "").slice(0, 50)}`;
     case "ticket.escalated":
@@ -147,6 +157,12 @@ function nodeForEvent(evt: LiveEvent): { id: string; state: NodeState } | null {
       return { id: "review", state: "waiting" };
     case "review.decided":
       return { id: "review", state: "done" };
+    case "subagent.started":
+      return { id: String(p.agentKey), state: "active" };
+    case "subagent.completed":
+      // A blocked sub-agent is the reason its parent stopped — hold it
+      // amber so the cause stays visible instead of flashing past.
+      return { id: String(p.agentKey), state: p.outcome === "blocked" ? "waiting" : "done" };
     case "ticket.created":
     case "ticket.escalated":
       return { id: "tickets", state: evt.type === "ticket.escalated" ? "waiting" : "done" };
@@ -296,11 +312,18 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
         },
       },
     ];
-    specialists.forEach((a, i) => {
+    // Depth-1 specialists on their own column; each one's sub-agents sit
+    // further left (RTL: further "downstream") and vertically beside their
+    // parent, so the tree reads as a hierarchy rather than a flat fleet.
+    const departments = specialists.filter((a) => a.depth === 1);
+    let row = 0;
+    departments.forEach((a) => {
+      const children = specialists.filter((c) => c.parent === a.key);
+      const parentY = 40 + row * 96;
       built.push({
         id: a.key,
         type: "agent",
-        position: { x: 100, y: 40 + i * 108 },
+        position: { x: 120, y: parentY },
         data: {
           label: a.nameAr,
           sublabel: a.handlesIntents.join("، "),
@@ -309,12 +332,26 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
           ...empty,
         },
       });
+      children.forEach((c, ci) => {
+        built.push({
+          id: c.key,
+          type: "agent",
+          position: { x: -120, y: parentY + ci * 74 - (children.length - 1) * 20 },
+          data: {
+            label: c.nameAr,
+            sublabel: c.tools.join("، "),
+            kind: "sub",
+            ...empty,
+          },
+        });
+      });
+      row += Math.max(1, children.length);
     });
     built.push(
       {
         id: "review",
         type: "agent",
-        position: { x: -190, y: 90 },
+        position: { x: -370, y: 90 },
         data: {
           label: "قائمة المراجعة",
           sublabel: "قرار بشري قبل الإرسال",
@@ -325,7 +362,7 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
       {
         id: "tickets",
         type: "agent",
-        position: { x: -190, y: 260 },
+        position: { x: -370, y: 300 },
         data: {
           label: "التذاكر والتصعيد",
           sublabel: "مهلة استجابة لكل قسم",
@@ -369,7 +406,7 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
       },
     ];
     agents
-      .filter((a) => a.department !== "supervisor")
+      .filter((a) => a.department !== "supervisor" && a.depth === 1)
       .forEach((a) => {
         e.push({
           id: `sup-${a.key}`,
@@ -378,6 +415,23 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
           animated: isHot(a.key),
           style: { stroke: isHot(a.key) ? "#ec407a" : "#c9cfdd", strokeWidth: 2 },
         });
+        // Parent → sub-agent, drawn thinner and dashed so the hierarchy
+        // reads differently from the main request flow.
+        agents
+          .filter((c) => c.parent === a.key)
+          .forEach((c) => {
+            e.push({
+              id: `${a.key}-${c.key}`,
+              source: a.key,
+              target: c.key,
+              animated: isHot(c.key),
+              style: {
+                stroke: isHot(c.key) ? "#ec407a" : "#d5dae6",
+                strokeWidth: 1.5,
+                strokeDasharray: "4 3",
+              },
+            });
+          });
         e.push({
           id: `${a.key}-out`,
           source: a.key,

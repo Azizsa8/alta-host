@@ -211,4 +211,6 @@ export interface AgentDefinition {
   handlesIntents: string[];
   tools: string[];
   parent?: string;
+  /** 0 supervisor, 1 department specialist, 2 sub-agent. */
+  depth: 0 | 1 | 2;
 }

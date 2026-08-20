@@ -158,3 +158,16 @@ model Review {
   text       String
   createdAt  DateTime @default(now())
 }
+
+// Domain events powering the live Operations Center feed (SSE) and
+// incident replay. Append-only; seq is the SSE Last-Event-ID cursor.
+model AltaEvent {
+  id         String   @id @default(uuid())
+  seq        BigInt   @default(autoincrement()) @unique
+  propertyId String
+  type       String
+  payload    String   // JSON-encoded event body (typed via modules/events/types.ts)
+  createdAt  DateTime @default(now())
+
+  @@index([propertyId, seq])
+}

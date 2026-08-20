@@ -5,6 +5,7 @@ import { sendWhatsAppMessage } from "../whatsapp/gateway.js";
 import { getReviewItem, markReviewed, type PendingAction } from "./reviewService.js";
 import { prisma } from "../../db.js";
 import { emitEvent } from "../events/bus.js";
+import { resumeIntentRun } from "../mastra/runner.js";
 import type { Urgency } from "../nlu/types.js";
 
 const pms = createPMSAdapter();
@@ -22,6 +23,22 @@ export async function approveReview(id: string, editedReply?: string, reviewedBy
   }
 
   const propertyId = item.intent.message.conversation.guest.propertyId;
+
+  // Mastra-path items carry the suspended run: resuming it is what executes
+  // the mutation and sends, inside the workflow, so approval has exactly one
+  // meaning regardless of which orchestrator queued the item.
+  if (item.workflowRunId) {
+    await resumeIntentRun(item.workflowRunId, { approved: true, editedReply, reviewedBy });
+    const resumedResult = await markReviewed(id, "approved", reviewedBy);
+    await emitEvent(propertyId, {
+      type: "review.decided",
+      reviewItemId: id,
+      decision: "approved",
+      reviewedBy: reviewedBy ?? "unknown",
+    });
+    return resumedResult;
+  }
+
   const pendingAction = JSON.parse(item.pendingAction) as PendingAction;
   const urgency: Urgency = item.intent.urgency === "urgent" ? "urgent" : "normal";
   const execCtx = { intentId: item.intentId, propertyId };
@@ -56,6 +73,12 @@ export async function rejectReview(id: string, reviewedBy?: string) {
   if (item.status !== "pending") {
     throw new Error(`review item ${id} is already ${item.status}`);
   }
+  // A rejected Mastra run must still be resumed — otherwise it stays
+  // suspended in storage forever. approved:false short-circuits execute.
+  if (item.workflowRunId) {
+    await resumeIntentRun(item.workflowRunId, { approved: false, reviewedBy });
+  }
+
   const result = await markReviewed(id, "rejected", reviewedBy);
   await emitEvent(item.intent.message.conversation.guest.propertyId, {
     type: "review.decided",

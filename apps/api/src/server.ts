@@ -10,6 +10,7 @@ import { apiRouter } from "./modules/api/routes.js";
 import { authRouter } from "./modules/auth/routes.js";
 import { sseRouter } from "./modules/events/sse.js";
 import { startIngestWorker } from "./modules/ingest/queue.js";
+import { isMastraOrchestrator } from "./modules/mastra/instance.js";
 
 const app = express();
 // Deployed behind exactly one reverse proxy (Caddy, see infra/web/Caddyfile /
@@ -76,4 +77,7 @@ app.listen(port, () => {
 // deploy scales both together. Split into its own service when webhook
 // volume outgrows one process.
 startIngestWorker();
-logger.info("ingest worker started");
+logger.info(
+  { orchestrator: isMastraOrchestrator() ? "mastra" : "legacy" },
+  "ingest worker started"
+);

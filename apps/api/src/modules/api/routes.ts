@@ -8,6 +8,7 @@ import { generateDailyReport } from "../reports/dailyReport.js";
 import { applyPendingEscalations } from "../tickets/ticketService.js";
 import { requireAuth } from "../auth/middleware.js";
 import { AGENT_REGISTRY } from "../agents/registry.js";
+import { recordAudit, auditContextFrom, verifyAuditChain } from "../audit/service.js";
 
 export const apiRouter = Router();
 // Everything in this router is dashboard/staff-facing — /auth/login and
@@ -90,6 +91,54 @@ apiRouter.get(
 apiRouter.get("/agents", (_req, res) => {
   res.json(AGENT_REGISTRY);
 });
+
+// The audit trail, newest first, scoped to the caller's property.
+// Filterable by action and actor because "show me everything this staff
+// member approved last month" is the actual question asked in a review.
+apiRouter.get(
+  "/audit",
+  asyncRoute(async (req, res) => {
+    const limit = Math.min(Number(req.query.limit ?? 100) || 100, 500);
+    const action = typeof req.query.action === "string" ? req.query.action : undefined;
+    const actorId = typeof req.query.actorId === "string" ? req.query.actorId : undefined;
+
+    const rows = await prisma.auditEvent.findMany({
+      where: {
+        propertyId: req.staff!.propertyId,
+        ...(action ? { action } : {}),
+        ...(actorId ? { actorId } : {}),
+      },
+      orderBy: { seq: "desc" },
+      take: limit,
+    });
+
+    res.json(
+      rows.map((r) => ({
+        seq: r.seq.toString(),
+        actorName: r.actorName,
+        actorId: r.actorId,
+        action: r.action,
+        resourceType: r.resourceType,
+        resourceId: r.resourceId,
+        outcome: r.outcome,
+        metadata: JSON.parse(r.metadata),
+        ip: r.ip,
+        createdAt: r.createdAt.toISOString(),
+        hash: r.hash,
+      }))
+    );
+  })
+);
+
+// Recomputes the whole chain. This is the endpoint to demonstrate in a
+// security review: it proves the trail has not been edited, rather than
+// asking anyone to take that on trust.
+apiRouter.get(
+  "/audit/verify",
+  asyncRoute(async (_req, res) => {
+    res.json(await verifyAuditChain());
+  })
+);
 
 // Latest domain events for the ops feed's initial paint — the live tail
 // arrives over /api/events/stream (SSE) afterwards.
@@ -188,6 +237,22 @@ apiRouter.patch(
       payload.action === "approve"
         ? await approveReview(id, payload.editedReply, reviewedBy)
         : await rejectReview(id, reviewedBy);
+
+    // The single most consequential staff action in the system: approving
+    // sends a message to a real guest and mutates a real reservation.
+    // Records whether the draft was edited, since "the agent wrote it" and
+    // "a human rewrote it" are materially different for accountability.
+    await recordAudit({
+      ...auditContextFrom(req),
+      action: `review.${payload.action}`,
+      resourceType: "ReviewItem",
+      resourceId: id,
+      metadata: {
+        department: result.department,
+        edited: Boolean(payload.editedReply?.trim()),
+        finalReply: payload.editedReply?.trim() || result.draftReply,
+      },
+    });
     res.json(result);
   })
 );

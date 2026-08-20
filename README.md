@@ -88,6 +88,31 @@ and published best-effort on Redis pub/sub for live delivery.
 
 Redis is now a core service (`docker compose up -d` starts it; `REDIS_URL`).
 
+## Agent runtime — durable human-in-the-loop
+
+`ORCHESTRATOR=mastra` routes intent dispatch through a [Mastra](https://mastra.ai)
+workflow runtime backed by the same Postgres. One workflow run per extracted
+intent: `propose → review gate → execute`.
+
+The gate is the point of the whole thing. For a guest-facing intent it calls
+`suspend()`, so the workflow **physically stops before the execute step** and
+the `ReviewItem` row records the suspended run's id. A PMS mutation is
+therefore structurally unreachable without approval, not merely avoided by
+convention. Staff approval resumes that exact run — from a different process,
+after a restart, hours later — and only then does the mutation and the send
+happen. Rejection resumes it too, with `approved: false`, so no run is left
+suspended forever.
+
+Low-risk departments (housekeeping/maintenance) and any type listed in
+`AUTO_APPROVE_INTENTS` skip the gate, identical to the legacy policy. That
+decision lives in exactly one place (`steps/reviewGate.ts`) so there is one
+thing to audit.
+
+Anything other than `mastra` (the default `legacy`) uses the original dispatch
+switch. Both paths ship and both are green, so the swap rolls back with one
+env var. `ReviewItem.workflowRunId` is null for legacy-path rows, which is how
+approval knows which mechanism to use.
+
 ## Environment profiles
 
 Three distinct configurations, same codebase:

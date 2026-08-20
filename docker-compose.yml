@@ -54,6 +54,9 @@ services:
       WAHA_BASE_URL: ${WAHA_BASE_URL:-http://waha:3000}
       WAHA_SESSION: ${WAHA_SESSION:-default}
       WAHA_API_KEY: ${WAHA_API_KEY:-}
+      # "mastra" routes dispatch through the workflow runtime (durable
+      # suspend/resume review gate); anything else uses the legacy switch.
+      ORCHESTRATOR: ${ORCHESTRATOR:-legacy}
       NLU_PROVIDER: ${NLU_PROVIDER:-rule_based}
       ASR_PROVIDER: ${ASR_PROVIDER:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}

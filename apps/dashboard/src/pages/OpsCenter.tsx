@@ -6,6 +6,8 @@ import {
   Controls,
   Handle,
   Position,
+  useNodesState,
+  useEdgesState,
   type Edge,
   type Node,
   type NodeProps,
@@ -190,21 +192,19 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
     });
   }, [live, pulse]);
 
-  const nodes = useMemo<Node<AgentNodeData>[]>(() => {
+  // Node identities and positions are built ONCE per agent roster. Live
+  // state is pushed into node.data afterwards — rebuilding the array on
+  // every event would hand React Flow brand-new nodes each time and its
+  // mount-time fitView would no longer point at them (the canvas blanks).
+  const baseNodes = useMemo<Node<AgentNodeData>[]>(() => {
     const specialists = agents.filter((a) => a.department !== "supervisor");
-    // RTL reading order: guest on the right, flow leftwards.
+    const empty = { state: "idle" as NodeState, count: 0 };
     const built: Node<AgentNodeData>[] = [
       {
         id: "guest",
         type: "agent",
         position: { x: 640, y: 200 },
-        data: {
-          label: "النزيل",
-          sublabel: "واتساب",
-          state: states.guest ?? "idle",
-          count: counts.guest ?? 0,
-          kind: "guest",
-        },
+        data: { label: "النزيل", sublabel: "واتساب", kind: "guest", ...empty },
       },
       {
         id: "concierge_supervisor",
@@ -213,9 +213,8 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
         data: {
           label: "المنسّق الرئيسي",
           sublabel: "استخراج النية والتوجيه",
-          state: states.concierge_supervisor ?? "idle",
-          count: counts.concierge_supervisor ?? 0,
           kind: "supervisor",
+          ...empty,
         },
       },
     ];
@@ -227,10 +226,9 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
         data: {
           label: a.nameAr,
           sublabel: a.handlesIntents.join("، "),
-          state: states[a.key] ?? "idle",
-          count: counts[a.key] ?? 0,
           reviewPolicy: a.reviewPolicy,
           kind: "agent",
+          ...empty,
         },
       });
     });
@@ -242,9 +240,8 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
         data: {
           label: "قائمة المراجعة",
           sublabel: "قرار بشري قبل الإرسال",
-          state: states.review ?? "idle",
-          count: counts.review ?? 0,
           kind: "sink",
+          ...empty,
         },
       },
       {
@@ -254,14 +251,33 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
         data: {
           label: "التذاكر والتصعيد",
           sublabel: "مهلة استجابة لكل قسم",
-          state: states.tickets ?? "idle",
-          count: counts.tickets ?? 0,
           kind: "sink",
+          ...empty,
         },
       }
     );
     return built;
-  }, [agents, states, counts]);
+  }, [agents]);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<AgentNodeData>>([]);
+
+  // Rebuild only when the roster changes (adds/removes nodes).
+  useEffect(() => {
+    setNodes(baseNodes);
+  }, [baseNodes, setNodes]);
+
+  // Push live state into existing nodes without touching their identity
+  // or position, so the viewport stays exactly where the user left it.
+  useEffect(() => {
+    setNodes((prev) =>
+      prev.map((n) => {
+        const state = states[n.id] ?? "idle";
+        const count = counts[n.id] ?? 0;
+        if (n.data.state === state && n.data.count === count) return n;
+        return { ...n, data: { ...n.data, state, count } };
+      })
+    );
+  }, [states, counts, setNodes]);
 
   const edges = useMemo<Edge[]>(() => {
     const isHot = (id: string) => (states[id] ?? "idle") !== "idle";
@@ -324,6 +340,7 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
             <div style={{ height: 470, borderRadius: 12, overflow: "hidden", background: "#f7f8fc" }}>
               <ReactFlow
                 nodes={nodes}
+                onNodesChange={onNodesChange}
                 edges={edges}
                 nodeTypes={nodeTypes}
                 fitView

@@ -1,5 +1,6 @@
 import { prisma } from "../../db.js";
 import { emitEvent } from "../events/bus.js";
+import { runSubAgent } from "../agents/subAgent.js";
 
 // FR-10 SLA windows (minutes from ticket creation), by department x urgency.
 // Guest-facing departments get the tightest windows; urgent tickets get
@@ -25,12 +26,26 @@ export async function createTicket(params: {
   propertyId: string;
   urgency: "normal" | "urgent";
 }) {
-  // Route to whichever staff member for this department is currently on
-  // shift — the "route to nearest available housekeeper" behavior from the
-  // architecture doc, simplified to "first on-shift match" for the MVP.
-  const staff = await prisma.staffMember.findFirst({
-    where: { propertyId: params.propertyId, role: params.department, onShift: true },
-  });
+  // Sub-agent: route to whichever staff member for this department is
+  // currently on shift — the "route to nearest available housekeeper"
+  // behavior from the architecture doc, simplified to "first on-shift
+  // match" for the MVP. Reported separately because an unassigned ticket
+  // is an operational fact someone needs to see, not an implementation
+  // detail buried in ticket creation.
+  const subCtx = { propertyId: params.propertyId, intentId: params.intentId };
+  const staff = await runSubAgent(
+    subCtx,
+    `${params.department}.staff_routing`,
+    params.department,
+    () =>
+      prisma.staffMember.findFirst({
+        where: { propertyId: params.propertyId, role: params.department, onShift: true },
+      }),
+    (found) =>
+      found
+        ? { outcome: "ok" as const, detail: `assigned to ${found.name}` }
+        : { outcome: "blocked" as const, detail: "no on-shift staff available" }
+  );
 
   const now = new Date();
   const ticket = await prisma.ticket.create({

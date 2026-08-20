@@ -2,6 +2,7 @@ import type { PMSAdapter } from "../pms/types.js";
 import { createTicket, logAgentAction } from "../tickets/ticketService.js";
 import type { ExtractedIntent, Urgency } from "../nlu/types.js";
 import type { PendingAction } from "../reviews/reviewService.js";
+import { runSubAgent } from "./subAgent.js";
 import { prisma } from "../../db.js";
 
 export interface AgentReply {
@@ -77,7 +78,7 @@ export function formatRiyadhTime(date: Date, lang: "ar" | "en"): string {
  */
 export async function proposeReceptionReply(
   intent: ExtractedIntent,
-  ctx: { guestId: string; propertyId: string },
+  ctx: { guestId: string; propertyId: string; intentId: string },
   pms: PMSAdapter
 ): Promise<ReceptionProposal> {
   if (intent.type === "reception.faq") {
@@ -100,7 +101,17 @@ export async function proposeReceptionReply(
 
   const lang = await resolveGuestLanguage(ctx.guestId);
   const hours = Number(intent.params.hours ?? 1);
-  const reservation = await pms.getReservationForGuest(ctx.guestId);
+  const subCtx = { propertyId: ctx.propertyId, intentId: ctx.intentId };
+
+  // Sub-agent: does this guest actually have a stay to extend? Gates the
+  // whole request — reported so "why was this refused?" is answerable.
+  const reservation = await runSubAgent(
+    subCtx,
+    "reception.reservation_lookup",
+    "reception",
+    () => pms.getReservationForGuest(ctx.guestId),
+    (r) => (r ? { outcome: "ok" as const } : { outcome: "blocked" as const, detail: "no active reservation" })
+  );
   if (!reservation) {
     return {
       draftReply:
@@ -111,7 +122,18 @@ export async function proposeReceptionReply(
     };
   }
 
-  const billing = await pms.getBillingStatus(ctx.guestId);
+  // Sub-agent: a late checkout is chargeable, so a valid payment method is
+  // a hard precondition. Second gate, separately attributed.
+  const billing = await runSubAgent(
+    subCtx,
+    "reception.billing_check",
+    "reception",
+    () => pms.getBillingStatus(ctx.guestId),
+    (b) =>
+      b.hasValidPaymentMethod
+        ? { outcome: "ok" as const }
+        : { outcome: "blocked" as const, detail: "no valid payment method on file" }
+  );
   if (!billing.hasValidPaymentMethod) {
     return {
       draftReply:

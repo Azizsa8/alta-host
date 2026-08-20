@@ -7,8 +7,9 @@ import { TicketBoard } from "./pages/TicketBoard.js";
 import { Guests } from "./pages/Guests.js";
 import { ReviewQueue } from "./pages/ReviewQueue.js";
 import { ExecutiveReport } from "./pages/ExecutiveReport.js";
+import { AuditTrail } from "./pages/AuditTrail.js";
 
-type View = "ops" | "simulator" | "reviews" | "tickets" | "guests" | "report";
+type View = "ops" | "simulator" | "reviews" | "tickets" | "guests" | "report" | "audit";
 
 const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
   { key: "ops", label: "مركز العمليات", icon: "hub" },
@@ -17,6 +18,7 @@ const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
   { key: "tickets", label: "لوحة التذاكر", icon: "confirmation_number" },
   { key: "guests", label: "النزلاء", icon: "groups" },
   { key: "report", label: "التقرير التنفيذي", icon: "summarize" },
+  { key: "audit", label: "سجل التدقيق", icon: "verified_user" },
 ];
 
 const VIEW_TITLES: Record<View, string> = {
@@ -26,6 +28,7 @@ const VIEW_TITLES: Record<View, string> = {
   tickets: "لوحة التذاكر",
   guests: "النزلاء",
   report: "التقرير التنفيذي",
+  audit: "سجل التدقيق",
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -222,6 +225,7 @@ export default function App() {
           {view === "tickets" && <TicketBoard propertyId={staff.propertyId} refreshKey={refreshKey} onChanged={bumpRefresh} />}
           {view === "guests" && <Guests propertyId={staff.propertyId} refreshKey={refreshKey} />}
           {view === "report" && <ExecutiveReport propertyId={staff.propertyId} refreshKey={refreshKey} />}
+          {view === "audit" && <AuditTrail refreshKey={refreshKey} />}
         </div>
       </main>
     </>

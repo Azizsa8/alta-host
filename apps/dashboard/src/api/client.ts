@@ -194,6 +194,13 @@ export const api = {
     request<ReviewItem>(`/reviews/${id}`, { method: "PATCH", body: JSON.stringify({ action: "reject" }) }),
   dailyReport: (propertyId: string) => request<DailyReport>(`/reports/daily?propertyId=${propertyId}`),
   agents: () => request<AgentDefinition[]>("/agents"),
+  audit: (opts: { limit?: number; action?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (opts.limit) q.set("limit", String(opts.limit));
+    if (opts.action) q.set("action", opts.action);
+    return request<AuditEntry[]>(`/audit?${q.toString()}`);
+  },
+  verifyAudit: () => request<ChainVerification>("/audit/verify"),
   recentEvents: (limit = 60) => request<LiveEvent[]>(`/events/recent?limit=${limit}`),
 };
 
@@ -213,4 +220,25 @@ export interface AgentDefinition {
   parent?: string;
   /** 0 supervisor, 1 department specialist, 2 sub-agent. */
   depth: 0 | 1 | 2;
+}
+
+export interface AuditEntry {
+  seq: string;
+  actorName: string;
+  actorId: string | null;
+  action: string;
+  resourceType: string | null;
+  resourceId: string | null;
+  outcome: "success" | "failure";
+  metadata: Record<string, unknown>;
+  ip: string | null;
+  createdAt: string;
+  hash: string;
+}
+
+export interface ChainVerification {
+  valid: boolean;
+  checked: number;
+  brokenAtSeq?: string;
+  reason?: string;
 }

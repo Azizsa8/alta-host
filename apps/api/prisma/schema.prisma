@@ -172,3 +172,31 @@ model AltaEvent {
 
   @@index([propertyId, seq])
 }
+
+// Tamper-evident audit trail. Append-only, and each row carries the hash
+// of the one before it, so any deletion or edit of history breaks the
+// chain verifiably (GET /api/audit/verify). This is the "who did what,
+// when, and can you prove it wasn't altered" question every enterprise
+// security review asks — and it matters here specifically because a
+// review approval mutates a real reservation and messages a real guest.
+model AuditEvent {
+  id           String   @id @default(uuid())
+  seq          BigInt   @default(autoincrement()) @unique
+  propertyId   String?
+  actorId      String?  // StaffMember id; null for system/unauthenticated
+  actorName    String
+  action       String   // e.g. auth.login, review.approve, ticket.status_change
+  resourceType String?
+  resourceId   String?
+  outcome      String   @default("success") // success | failure
+  metadata     String   @default("{}") // JSON — before/after, reason, etc.
+  ip           String?
+  userAgent    String?
+  prevHash     String?  // hash of the previous entry, null for the first
+  hash         String   // sha256 over this entry's canonical form + prevHash
+  createdAt    DateTime @default(now())
+
+  @@index([propertyId, seq])
+  @@index([actorId, seq])
+  @@index([action, seq])
+}

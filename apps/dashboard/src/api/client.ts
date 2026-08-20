@@ -144,6 +144,31 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface LiveEvent {
+  seq: string;
+  propertyId: string;
+  type: string;
+  payload: Record<string, unknown> & { type: string };
+  createdAt: string;
+}
+
+/** Opens the authenticated SSE feed. EventSource reconnects automatically
+ *  and resends Last-Event-ID, so missed events replay server-side. The
+ *  JWT rides as ?token= because EventSource can't set headers. */
+export function eventStream(onEvent: (evt: LiveEvent) => void): () => void {
+  const token = getToken();
+  if (!token) return () => {};
+  const source = new EventSource(`${BASE}/events/stream?token=${encodeURIComponent(token)}`);
+  source.onmessage = (msg) => {
+    try {
+      onEvent(JSON.parse(msg.data) as LiveEvent);
+    } catch {
+      /* ignore malformed frames */
+    }
+  };
+  return () => source.close();
+}
+
 export const api = {
   login: async (username: string, password: string) => {
     const result = await request<{ token: string; staff: Staff }>("/auth/login", {

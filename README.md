@@ -62,6 +62,32 @@ Send a couple of maintenance complaints mentioning the same thing (e.g. "AC") an
 **Executive Report** — it surfaces a named recommendation once a pattern crosses threshold, not
 just a raw count.
 
+## Event spine (architecture v2, phase 1A)
+
+Every meaningful pipeline step emits a typed domain event (`message.received`,
+`intent.extracted`, `agent.started/completed`, `review.queued/decided`,
+`ticket.created/escalated` — see `modules/events/types.ts`). Events are
+persist-first (append-only `AltaEvent` table, so any incident can be replayed)
+and published best-effort on Redis pub/sub for live delivery.
+
+- **Live feed**: `GET /api/events/stream` — SSE, per-staff-property scoped,
+  auth via the staff JWT as `?token=` (EventSource can't set headers). Honors
+  `Last-Event-ID`: a reconnecting client replays what it missed from Postgres
+  before going live. The dashboard runs entirely off this feed — no polling.
+- **Initial paint**: `GET /api/events/recent?limit=50`.
+- **Ingestion**: inbound WhatsApp webhooks no longer run the pipeline inline —
+  they resolve the conversation, enqueue to BullMQ (`inbound-messages` queue),
+  and ack in ~25ms. Workers (in-process, concurrency 5) run the pipeline with
+  3 retries + exponential backoff; failed jobs are retained as the DLQ. The
+  transport message id is the job id, so WhatsApp webhook redeliveries dedupe
+  instead of double-processing. `/api/simulate` stays synchronous — the
+  Simulator shows the pipeline result inline.
+- **Agent fleet**: `GET /api/agents` — the declarative registry
+  (`modules/agents/registry.ts`): every agent's role, tools, risk level, and
+  review policy as first-class data, bilingual (en/ar).
+
+Redis is now a core service (`docker compose up -d` starts it; `REDIS_URL`).
+
 ## Environment profiles
 
 Three distinct configurations, same codebase:

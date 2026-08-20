@@ -164,6 +164,16 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
   const [live, setLive] = useState(true);
   const timers = useRef<Record<string, number>>({});
 
+  // ---- incident replay ----------------------------------------------
+  // The same events that drive the live view are persisted in order, so
+  // replaying an incident is just walking that history back through the
+  // identical pulse logic — no separate "demo mode" that could drift
+  // from how the system actually behaves.
+  const [history, setHistory] = useState<LiveEvent[]>([]);
+  const [cursor, setCursor] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState(4);
+
   useEffect(() => {
     api.agents().then(setAgents).catch(() => {});
     api.recentEvents(60).then((evts) => setFeed(evts.reverse())).catch(() => {});
@@ -191,6 +201,74 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
       if (target) pulse(target.id, target.state);
     });
   }, [live, pulse]);
+
+  /** Clears every node back to idle — used when switching modes so a
+   *  replay never starts on top of leftover live state. */
+  const resetBoard = useCallback(() => {
+    Object.values(timers.current).forEach((t) => window.clearTimeout(t));
+    timers.current = {};
+    setStates({});
+    setCounts({});
+  }, []);
+
+  /** Enter replay: stop the live feed and load the recent history. */
+  async function startReplay() {
+    setLive(false);
+    setPlaying(false);
+    resetBoard();
+    const evts = await api.recentEvents(200);
+    setHistory(evts); // oldest → newest
+    setCursor(0);
+    setFeed([]);
+  }
+
+  function backToLive() {
+    setPlaying(false);
+    setHistory([]);
+    resetBoard();
+    setFeed([]);
+    api.recentEvents(60).then((e) => setFeed(e.reverse())).catch(() => {});
+    setLive(true);
+  }
+
+  /** Steps the replay forward, applying each event through the same
+   *  pulse path the live feed uses. */
+  useEffect(() => {
+    if (!playing || history.length === 0) return;
+    if (cursor >= history.length) {
+      setPlaying(false);
+      return;
+    }
+    const id = window.setTimeout(() => {
+      const evt = history[cursor];
+      setFeed((prev) => [evt, ...prev].slice(0, 120));
+      const target = nodeForEvent(evt);
+      if (target) pulse(target.id, target.state);
+      setCursor((c) => c + 1);
+    }, 900 / speed);
+    return () => window.clearTimeout(id);
+  }, [playing, cursor, history, speed, pulse]);
+
+  /** Scrubbing jumps the board to a point in the incident by replaying
+   *  everything up to it instantly, so the picture is always the true
+   *  cumulative state at that moment rather than a single frame. */
+  function scrubTo(index: number) {
+    setPlaying(false);
+    resetBoard();
+    const upto = history.slice(0, index);
+    const st: Record<string, NodeState> = {};
+    const ct: Record<string, number> = {};
+    upto.forEach((evt) => {
+      const t = nodeForEvent(evt);
+      if (!t) return;
+      st[t.id] = t.state;
+      ct[t.id] = (ct[t.id] ?? 0) + 1;
+    });
+    setStates(st);
+    setCounts(ct);
+    setFeed(upto.slice().reverse().slice(0, 120));
+    setCursor(index);
+  }
 
   // Node identities and positions are built ONCE per agent roster. Live
   // state is pushed into node.data afterwards — rebuilding the array on
@@ -329,14 +407,72 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
                 كل وكيل يضيء لحظة عمله فعليًا — مصدر البيانات هو نفسه سجل النظام، لا محاكاة.
               </p>
             </div>
-            <button
-              className={`btn btn-sm mb-0 ${live ? "bg-gradient-primary" : "btn-outline-secondary"}`}
-              onClick={() => setLive((v) => !v)}
-            >
-              {live ? "● مباشر" : "متوقف"}
-            </button>
+            <div className="d-flex gap-2">
+              <button
+                className={`btn btn-sm mb-0 ${live ? "bg-gradient-primary" : "btn-outline-secondary"}`}
+                onClick={() => (live ? setLive(false) : backToLive())}
+              >
+                {live ? "● مباشر" : "عودة للبث"}
+              </button>
+              <button className="btn btn-sm btn-outline-dark mb-0" onClick={startReplay}>
+                إعادة تشغيل الأحداث
+              </button>
+            </div>
           </div>
           <div className="card-body pt-3">
+            {history.length > 0 && (
+              <div
+                className="mb-3 p-3"
+                style={{ background: "#fff8ec", border: "1px solid #f6dfb8", borderRadius: 10 }}
+              >
+                <div className="d-flex align-items-center gap-3 mb-2">
+                  <button
+                    className="btn btn-sm bg-gradient-dark mb-0"
+                    style={{ minWidth: 78 }}
+                    onClick={() => setPlaying((p) => !p)}
+                  >
+                    {playing ? "إيقاف" : "▶ تشغيل"}
+                  </button>
+                  <span className="text-xs text-secondary">
+                    الحدث <b className="mono">{cursor}</b> من{" "}
+                    <b className="mono">{history.length}</b>
+                  </span>
+                  {history[Math.min(cursor, history.length - 1)] && (
+                    <span className="text-xs text-secondary mono">
+                      {new Date(
+                        history[Math.min(cursor, history.length - 1)].createdAt
+                      ).toLocaleString("ar-SA")}
+                    </span>
+                  )}
+                  <span className="text-xs text-secondary ms-auto">
+                    السرعة
+                    <select
+                      className="form-select form-select-sm d-inline-block ms-1"
+                      style={{ width: 66 }}
+                      value={speed}
+                      onChange={(e) => setSpeed(Number(e.target.value))}
+                    >
+                      <option value={1}>×1</option>
+                      <option value={2}>×2</option>
+                      <option value={4}>×4</option>
+                      <option value={8}>×8</option>
+                    </select>
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  className="form-range"
+                  min={0}
+                  max={history.length}
+                  value={cursor}
+                  onChange={(e) => scrubTo(Number(e.target.value))}
+                  style={{ width: "100%" }}
+                />
+                <p className="text-xs text-secondary mb-0">
+                  إعادة تشغيل حقيقية من سجل الأحداث المحفوظ — نفس البيانات التي شغّلت النظام وقتها.
+                </p>
+              </div>
+            )}
             <div style={{ height: 470, borderRadius: 12, overflow: "hidden", background: "#f7f8fc" }}>
               <ReactFlow
                 nodes={nodes}

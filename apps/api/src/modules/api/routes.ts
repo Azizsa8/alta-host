@@ -7,6 +7,7 @@ import { approveReview, rejectReview } from "../reviews/reviewOrchestrator.js";
 import { generateDailyReport } from "../reports/dailyReport.js";
 import { applyPendingEscalations } from "../tickets/ticketService.js";
 import { requireAuth } from "../auth/middleware.js";
+import { AGENT_REGISTRY } from "../agents/registry.js";
 
 export const apiRouter = Router();
 // Everything in this router is dashboard/staff-facing — /auth/login and
@@ -83,6 +84,12 @@ apiRouter.get(
     res.json(properties);
   })
 );
+
+// The agent fleet's declarative configuration — what the Operations
+// Center renders as "every agent, its role, tools, and review policy".
+apiRouter.get("/agents", (_req, res) => {
+  res.json(AGENT_REGISTRY);
+});
 
 // Latest domain events for the ops feed's initial paint — the live tail
 // arrives over /api/events/stream (SSE) afterwards.

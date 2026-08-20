@@ -5,6 +5,7 @@ import { proposeReceptionReply, executeReceptionAction } from "../agents/recepti
 import { proposeGuestServiceReply, executeGuestServiceAction } from "../agents/guestServiceAgent.js";
 import { handleHousekeepingIntent } from "../agents/housekeepingAgent.js";
 import { queueForReview } from "../reviews/reviewService.js";
+import { emitEvent } from "../events/bus.js";
 import type { ExtractedIntent, Urgency } from "../nlu/types.js";
 
 const intentEngine = createIntentEngine();
@@ -54,7 +55,23 @@ export async function processInboundMessage(params: {
     },
   });
 
+  await emitEvent(params.propertyId, {
+    type: "message.received",
+    conversationId: params.conversationId,
+    guestId: params.guestId,
+    mediaType: params.mediaType ?? "text",
+    preview: params.text.slice(0, 120),
+  });
+
   const envelope = await intentEngine.extract(params.text);
+
+  await emitEvent(params.propertyId, {
+    type: "intent.extracted",
+    messageId: message.id,
+    intents: envelope.intents.map((i) => ({ type: i.type, confidence: i.confidence })),
+    sentiment: envelope.sentiment,
+    urgency: envelope.urgency,
+  });
 
   if (envelope.intents.length === 0) {
     return {
@@ -84,7 +101,40 @@ export async function processInboundMessage(params: {
   return { intentEnvelope: envelope, outcomes };
 }
 
+function agentKeyFor(intentType: string): string {
+  if (intentType.startsWith("maintenance.")) return "maintenance";
+  if (intentType.startsWith("housekeeping.")) return "housekeeping";
+  if (intentType.startsWith("guest_service.")) return "guest_service";
+  if (intentType.startsWith("booking.") || intentType.startsWith("reception.")) return "reception";
+  return "concierge_supervisor";
+}
+
 async function dispatch(
+  intent: ExtractedIntent,
+  ctx: { guestId: string; propertyId: string; intentId: string },
+  urgency: Urgency
+): Promise<DispatchOutcome> {
+  const agentKey = agentKeyFor(intent.type);
+  await emitEvent(ctx.propertyId, {
+    type: "agent.started",
+    agentKey,
+    intentId: ctx.intentId,
+    intentType: intent.type,
+  });
+
+  const outcome = await dispatchInner(intent, ctx, urgency);
+
+  await emitEvent(ctx.propertyId, {
+    type: "agent.completed",
+    agentKey,
+    intentId: ctx.intentId,
+    outcome: outcome.status,
+    replyPreview: outcome.reply?.slice(0, 120),
+  });
+  return outcome;
+}
+
+async function dispatchInner(
   intent: ExtractedIntent,
   ctx: { guestId: string; propertyId: string; intentId: string },
   urgency: Urgency
@@ -103,11 +153,17 @@ async function dispatch(
         await executeReceptionAction(proposal.pendingAction, { ...ctx, urgency }, pms);
         return { intentType: intent.type, status: "sent", reply: proposal.draftReply };
       }
-      await queueForReview({
+      const reviewItem = await queueForReview({
         intentId: ctx.intentId,
         department: "reception",
         draftReply: proposal.draftReply,
         pendingAction: proposal.pendingAction,
+      });
+      await emitEvent(ctx.propertyId, {
+        type: "review.queued",
+        reviewItemId: reviewItem.id,
+        department: "reception",
+        intentId: ctx.intentId,
       });
       return { intentType: intent.type, status: "queued_for_review" };
     }
@@ -118,11 +174,17 @@ async function dispatch(
         await executeGuestServiceAction(proposal.pendingAction, ctx);
         return { intentType: intent.type, status: "sent", reply: proposal.draftReply };
       }
-      await queueForReview({
+      const reviewItem = await queueForReview({
         intentId: ctx.intentId,
         department: "guest_service",
         draftReply: proposal.draftReply,
         pendingAction: proposal.pendingAction,
+      });
+      await emitEvent(ctx.propertyId, {
+        type: "review.queued",
+        reviewItemId: reviewItem.id,
+        department: "guest_service",
+        intentId: ctx.intentId,
       });
       return { intentType: intent.type, status: "queued_for_review" };
     }

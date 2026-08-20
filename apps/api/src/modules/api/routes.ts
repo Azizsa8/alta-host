@@ -84,6 +84,29 @@ apiRouter.get(
   })
 );
 
+// Latest domain events for the ops feed's initial paint — the live tail
+// arrives over /api/events/stream (SSE) afterwards.
+apiRouter.get(
+  "/events/recent",
+  asyncRoute(async (req, res) => {
+    const limit = Math.min(Number(req.query.limit ?? 50) || 50, 200);
+    const rows = await prisma.altaEvent.findMany({
+      where: { propertyId: req.staff!.propertyId },
+      orderBy: { seq: "desc" },
+      take: limit,
+    });
+    res.json(
+      rows.reverse().map((row) => ({
+        seq: row.seq.toString(),
+        propertyId: row.propertyId,
+        type: row.type,
+        payload: JSON.parse(row.payload),
+        createdAt: row.createdAt.toISOString(),
+      }))
+    );
+  })
+);
+
 apiRouter.get(
   "/tickets",
   asyncRoute(async (req, res) => {

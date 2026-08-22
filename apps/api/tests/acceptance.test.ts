@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { prisma } from "../src/db.js";
 import { processInboundMessage } from "../src/modules/orchestrator/index.js";
 import { can, ROLES, ACTIONS, type Action } from "../src/modules/auth/permissions.js";
-import { verifyAuditChain } from "../src/modules/audit/service.js";
+import { verifyAuditChain, recordAudit } from "../src/modules/audit/service.js";
 import { quotaFor } from "../src/modules/storage/service.js";
 import { syncReviews } from "../src/modules/reputation/service.js";
 import { canTransition } from "../src/modules/content/service.js";
@@ -119,6 +119,14 @@ describe("§11 acceptance matrix", () => {
   });
 
   it("§11-9: the audit chain verifies end-to-end, entries carry actor + time", async () => {
+    // Self-sufficient on a fresh DB (CI runs this file in isolation):
+    // write one entry, then verify the whole chain including it.
+    await recordAudit({
+      actorName: "acceptance-suite",
+      action: "acceptance.selfcheck",
+      propertyId,
+      outcome: "success",
+    });
     const verification = await verifyAuditChain();
     expect(verification.valid).toBe(true);
     expect(verification.checked).toBeGreaterThan(0);

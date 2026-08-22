@@ -14,8 +14,16 @@ import { WorkOrders } from "./pages/WorkOrders.js";
 import { AgentCentre } from "./pages/AgentCentre.js";
 import { Reputation } from "./pages/Reputation.js";
 import { ContentStudio } from "./pages/ContentStudio.js";
+import { PlatformAdmin } from "./pages/PlatformAdmin.js";
 
-type View = "ops" | "inbox" | "simulator" | "reviews" | "tickets" | "workorders" | "guests" | "storage" | "agents" | "reputation" | "content" | "report" | "audit";
+type View = "ops" | "inbox" | "simulator" | "reviews" | "tickets" | "workorders" | "guests" | "storage" | "agents" | "reputation" | "content" | "report" | "audit" | "platform";
+
+// §3: alta_admin sees the platform console + audit only — never a
+// hotel's guest data. Everyone else gets the hotel screens.
+const PLATFORM_NAV: Array<{ key: View; label: string; icon: string }> = [
+  { key: "platform", label: "إدارة المنصة", icon: "apartment" },
+  { key: "audit", label: "سجل التدقيق", icon: "verified_user" },
+];
 
 const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
   { key: "ops", label: "مركز العمليات", icon: "hub" },
@@ -47,6 +55,7 @@ const VIEW_TITLES: Record<View, string> = {
   storage: "الملفات والتخزين",
   report: "التقرير التنفيذي",
   audit: "سجل التدقيق",
+  platform: "إدارة المنصة",
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -66,6 +75,11 @@ const ROLE_LABELS: Record<string, string> = {
 export default function App() {
   const [staff, setStaff] = useState<Staff | null | undefined>(undefined); // undefined = still checking
   const [view, setView] = useState<View>("ops");
+
+  // The platform operator lands on their console, not a hotel's ops centre.
+  useEffect(() => {
+    if (staff && staff.role === "alta_admin" && view === "ops") setView("platform");
+  }, [staff, view]);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [sidenavPinned, setSidenavPinned] = useState(false);
@@ -142,7 +156,7 @@ export default function App() {
         <hr className="horizontal light mt-2 mb-2" />
         <div className="collapse navbar-collapse w-auto max-height-vh-100" id="sidenav-collapse-main">
           <ul className="navbar-nav">
-            {NAV_ITEMS.map((item) => (
+            {(staff.role === "alta_admin" ? PLATFORM_NAV : NAV_ITEMS).map((item) => (
               <li className="nav-item" key={item.key}>
                 <a
                   className={`nav-link text-white ${view === item.key ? "active bg-gradient-primary" : ""}`}
@@ -254,6 +268,7 @@ export default function App() {
           {view === "agents" && <AgentCentre staff={staff} refreshKey={refreshKey} />}
           {view === "reputation" && <Reputation staff={staff} refreshKey={refreshKey} />}
           {view === "content" && <ContentStudio staff={staff} refreshKey={refreshKey} />}
+          {view === "platform" && <PlatformAdmin refreshKey={refreshKey} />}
           {view === "report" && <ExecutiveReport propertyId={staff.propertyId} refreshKey={refreshKey} />}
           {view === "audit" && <AuditTrail refreshKey={refreshKey} />}
         </div>

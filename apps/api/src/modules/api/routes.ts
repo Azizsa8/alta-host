@@ -21,6 +21,7 @@ import {
 } from "../workorders/service.js";
 import { setAgentEnabled } from "../knowledge/service.js";
 import { syncReviews, approveAndPublish } from "../reputation/service.js";
+import { createHotel, setTenantState, listTenants, isTenantSuspended, TENANT_PLANS } from "../platform/service.js";
 import {
   generateIdeas,
   draftFromIdea,
@@ -37,6 +38,22 @@ export const apiRouter = Router();
 // Everything in this router is dashboard/staff-facing — /auth/login and
 // /auth/me are mounted separately in server.ts, before this middleware.
 apiRouter.use(requireAuth);
+
+// §13: a suspended hotel's staff lose API access entirely (alta_admin is
+// exempt — someone has to be able to un-suspend). Cached 30s in the
+// service; suspension from this instance bites instantly.
+apiRouter.use((req, res, next) => {
+  if (req.staff!.role === "alta_admin") {
+    next();
+    return;
+  }
+  isTenantSuspended(req.staff!.tenantId)
+    .then((suspended) => {
+      if (suspended) res.status(403).json({ error: "الاشتراك موقوف — تواصل مع إدارة منصة ألتا" });
+      else next();
+    })
+    .catch(next);
+});
 
 // Shared error shape for every route in this file: Zod validation failures
 // become a 400 with a readable message, anything else is treated as a
@@ -952,6 +969,76 @@ apiRouter.post(
       return;
     }
     res.json({ published: true, resultUrl: result.resultUrl });
+  })
+);
+
+// ---- platform administration (§13) — alta_admin only, cross-tenant ----
+
+function requirePlatform(req: Request, res: Response): boolean {
+  if (!can(req.staff!.role, "platform.manage")) {
+    res.status(403).json({ error: "platform administration is alta_admin only" });
+    return false;
+  }
+  return true;
+}
+
+apiRouter.get(
+  "/platform/tenants",
+  asyncRoute(async (req, res) => {
+    if (!requirePlatform(req, res)) return;
+    res.json(await listTenants());
+  })
+);
+
+const CreateHotelBody = z.object({
+  propertyId: z.string().regex(/^[a-z0-9][a-z0-9-]{2,40}$/, "lowercase slug"),
+  name: z.string().min(2).max(120),
+  plan: z.enum(TENANT_PLANS),
+  quotaGb: z.number().int().min(1).max(1000),
+  managerName: z.string().min(2).max(80),
+  managerUsername: z.string().regex(/^[a-z0-9_.]{3,40}$/),
+  managerPassword: z.string().min(10).max(200),
+});
+
+apiRouter.post(
+  "/platform/hotels",
+  asyncRoute(async (req, res) => {
+    if (!requirePlatform(req, res)) return;
+    const body = CreateHotelBody.parse(req.body);
+    const result = await createHotel({
+      actor: { staffId: req.staff!.staffId, name: req.staff!.name },
+      ...body,
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.status(201).json(result);
+  })
+);
+
+const TenantPatch = z.object({
+  plan: z.enum(TENANT_PLANS).optional(),
+  quotaGb: z.number().int().min(1).max(1000).optional(),
+  status: z.enum(["active", "suspended"]).optional(),
+});
+
+apiRouter.patch(
+  "/platform/tenants/:id",
+  asyncRoute(async (req, res) => {
+    if (!requirePlatform(req, res)) return;
+    const { id } = z.object({ id: z.string().min(3).max(80) }).parse(req.params);
+    const body = TenantPatch.parse(req.body);
+    const result = await setTenantState({
+      actor: { staffId: req.staff!.staffId, name: req.staff!.name },
+      tenantId: id,
+      ...body,
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.json({ updated: true });
   })
 );
 

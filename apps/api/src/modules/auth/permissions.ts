@@ -46,6 +46,7 @@ export const ACTIONS = [
   "content.view",
   "content.edit", // ideas, drafts, brand profile
   "content.approve", // §7: publish only after this human act
+  "platform.manage", // §13: create hotels, plans/quotas, suspend — alta_admin ONLY
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -85,6 +86,7 @@ const POLICY: Record<Action, Role[]> = {
   "content.view": [...MANAGERS, "marketing_manager", "reception"],
   "content.edit": [...MANAGERS, "marketing_manager"],
   "content.approve": [...MANAGERS, "marketing_manager"],
+  "platform.manage": ["alta_admin"],
 };
 
 export function can(role: string, action: Action): boolean {

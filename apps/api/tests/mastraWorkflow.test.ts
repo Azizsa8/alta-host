@@ -169,4 +169,32 @@ describe("mastra intent workflow — review gate invariant", () => {
     const tickets = await prisma.ticket.count({ where: { intentId: intent.id } });
     expect(tickets).toBe(1);
   });
+
+  it("§7 guard holds on the workflow path: auto-approved booking mutation throws", async () => {
+    const intent = await makeIntent("booking.extend_stay");
+    // autoApprove short-circuits the human gate — exactly the §7 danger the
+    // execute-step guard must catch: extend_checkout is review-gated.
+    await expect(
+      startIntentRun({
+        propertyId,
+        guestId,
+        conversationId,
+        intentId: intent.id,
+        intentType: "booking.extend_stay",
+        params: { hours: 2 },
+        urgency: "normal",
+        agentKey: "reception",
+        autoApprove: true,
+      })
+    ).rejects.toThrow(/review gate|forbidden/i);
+  });
+
+  it("§9 run capture works for workflow runs too", async () => {
+    const run = await prisma.agentRun.findFirst({
+      where: { propertyId, agentKey: "housekeeping" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(run).toBeTruthy();
+    expect(run!.policyApplied).toBe("enabled");
+  });
 });

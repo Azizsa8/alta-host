@@ -8,6 +8,7 @@ import { emitEvent } from "../../events/bus.js";
 import { GateOutputSchema, IntentRunResultSchema } from "../schemas.js";
 import type { ExtractedIntent } from "../../nlu/types.js";
 import type { PendingAction } from "../../reviews/reviewService.js";
+import { assertActionAllowed } from "../../agents/guards.js";
 
 const pms = createPMSAdapter();
 
@@ -48,12 +49,24 @@ export const executeStep = createStep({
       });
       reply = result.text;
     } else if (inputData.agentKey === "reception") {
+      // §7 guard on the workflow path too — auto-approved runs cannot
+      // execute gate-requiring actions any more than the legacy path can.
+      assertActionAllowed(
+        "reception",
+        inputData.pendingAction as PendingAction,
+        inputData.autoApprove ? "auto" : "review_approved"
+      );
       await executeReceptionAction(
         inputData.pendingAction as PendingAction,
         { ...ctx, urgency: inputData.urgency },
         pms
       );
     } else if (inputData.agentKey === "guest_service") {
+      assertActionAllowed(
+        "guest_service",
+        inputData.pendingAction as PendingAction,
+        inputData.autoApprove ? "auto" : "review_approved"
+      );
       await executeGuestServiceAction(inputData.pendingAction as PendingAction, ctx);
     }
 

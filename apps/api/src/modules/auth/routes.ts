@@ -5,6 +5,7 @@ import { prisma } from "../../db.js";
 import { signStaffToken } from "./tokens.js";
 import { requireAuth } from "./middleware.js";
 import { recordAudit } from "../audit/service.js";
+import { normaliseRole } from "./permissions.js";
 
 export const authRouter = Router();
 
@@ -40,7 +41,7 @@ authRouter.post("/auth/login", async (req, res) => {
     return;
   }
 
-  const token = signStaffToken({ staffId: staff.id, tenantId: staff.tenantId, propertyId: staff.propertyId, name: staff.name, role: staff.role });
+  const token = signStaffToken({ staffId: staff.id, tenantId: staff.tenantId, propertyId: staff.propertyId, name: staff.name, role: normaliseRole(staff.role) });
   await recordAudit({
     action: "auth.login",
     actorId: staff.id,
@@ -50,7 +51,7 @@ authRouter.post("/auth/login", async (req, res) => {
     userAgent: req.header("user-agent") ?? undefined,
     metadata: { role: staff.role },
   });
-  res.json({ token, staff: { id: staff.id, name: staff.name, role: staff.role, propertyId: staff.propertyId } });
+  res.json({ token, staff: { id: staff.id, name: staff.name, role: normaliseRole(staff.role), propertyId: staff.propertyId } });
 });
 
 authRouter.get("/auth/me", requireAuth, (req, res) => {

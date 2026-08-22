@@ -51,7 +51,10 @@ async function main() {
     { name: "Layla (Guest Service)", role: "guest_service", username: "layla" },
     // A manager is required, not decorative: credential management is
     // gated to this role, so without one the vault is unusable.
-    { name: "Reem (Manager)", role: "manager", username: "reem" },
+    { name: "Reem (Manager)", role: "hotel_manager", username: "reem" },
+    { name: "Tariq (Technician)", role: "technician", username: "tariq" },
+    { name: "Dana (Marketing)", role: "marketing_manager", username: "dana" },
+    { name: "Waleed (GM)", role: "general_manager", username: "waleed" },
   ];
 
   for (const s of staffRoles) {
@@ -62,6 +65,7 @@ async function main() {
           propertyId: property.id,
           name: s.name,
           role: s.role,
+          department: ['reception','housekeeping','maintenance','guest_service'].includes(s.role) ? s.role : (s.role === 'technician' || s.role === 'maintenance_manager' ? 'maintenance' : null),
           onShift: true,
           username: s.username,
           passwordHash: DEMO_PASSWORD_HASH,
@@ -116,7 +120,7 @@ async function main() {
     { name: "Mona (Housekeeping)", role: "housekeeping", username: "mona" },
     { name: "Yousef (Maintenance)", role: "maintenance", username: "yousef" },
     { name: "Huda (Guest Service)", role: "guest_service", username: "huda" },
-    { name: "Omar (Manager)", role: "manager", username: "omar" },
+    { name: "Omar (Manager)", role: "hotel_manager", username: "omar" },
   ];
 
   for (const s of staffRoles2) {
@@ -127,6 +131,7 @@ async function main() {
           propertyId: property2.id,
           name: s.name,
           role: s.role,
+          department: ['reception','housekeeping','maintenance','guest_service'].includes(s.role) ? s.role : (s.role === 'technician' || s.role === 'maintenance_manager' ? 'maintenance' : null),
           onShift: true,
           username: s.username,
           passwordHash: DEMO_PASSWORD_HASH,

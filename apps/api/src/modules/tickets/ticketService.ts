@@ -39,7 +39,7 @@ export async function createTicket(params: {
     params.department,
     () =>
       prisma.staffMember.findFirst({
-        where: { propertyId: params.propertyId, role: params.department, onShift: true },
+        where: { propertyId: params.propertyId, department: params.department, onShift: true },
       }),
     (found) =>
       found

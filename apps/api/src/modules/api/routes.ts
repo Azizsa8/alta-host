@@ -8,6 +8,7 @@ import { generateDailyReport } from "../reports/dailyReport.js";
 import { applyPendingEscalations } from "../tickets/ticketService.js";
 import { requireAuth } from "../auth/middleware.js";
 import { AGENT_REGISTRY } from "../agents/registry.js";
+import { can } from "../auth/permissions.js";
 import { recordAudit, auditContextFrom, verifyAuditChain } from "../audit/service.js";
 import { emitEvent } from "../events/bus.js";
 import { sendWhatsAppMessage } from "../whatsapp/gateway.js";
@@ -183,8 +184,8 @@ const CredentialPayload = z.object({
 apiRouter.put(
   "/credentials",
   asyncRoute(async (req, res) => {
-    if (req.staff!.role !== "manager") {
-      res.status(403).json({ error: "only managers can manage credentials" });
+    if (!can(req.staff!.role, "credentials.manage")) {
+      res.status(403).json({ error: "only the hotel manager can manage credentials" });
       return;
     }
     const payload = CredentialPayload.parse(req.body);
@@ -201,8 +202,8 @@ apiRouter.put(
 apiRouter.delete(
   "/credentials/:key",
   asyncRoute(async (req, res) => {
-    if (req.staff!.role !== "manager") {
-      res.status(403).json({ error: "only managers can manage credentials" });
+    if (!can(req.staff!.role, "credentials.manage")) {
+      res.status(403).json({ error: "only the hotel manager can manage credentials" });
       return;
     }
     const removed = await deleteCredential({
@@ -324,7 +325,7 @@ apiRouter.post(
 apiRouter.post(
   "/conversations/:id/resume-ai",
   asyncRoute(async (req, res) => {
-    if (req.staff!.role !== "manager") {
+    if (!can(req.staff!.role, "conversations.resume_ai")) {
       res.status(403).json({ error: "only a manager can return a conversation to AI" });
       return;
     }

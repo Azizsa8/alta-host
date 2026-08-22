@@ -208,7 +208,47 @@ export const api = {
   },
   verifyAudit: () => request<ChainVerification>("/audit/verify"),
   recentEvents: (limit = 60) => request<LiveEvent[]>(`/events/recent?limit=${limit}`),
+  storageQuota: () => request<StorageQuota>("/storage/quota"),
+  storageFiles: (status: "active" | "trashed" = "active") =>
+    request<StorageFile[]>(`/storage/files?status=${status}`),
+  requestUpload: (payload: { kind: string; name: string; mime: string; sizeBytes: number }) =>
+    request<UploadGrant>("/storage/uploads", { method: "POST", body: JSON.stringify(payload) }),
+  confirmUpload: (fileId: string) =>
+    request<{ confirmed: boolean }>(`/storage/uploads/${fileId}/confirm`, { method: "POST" }),
+  fileUrl: (fileId: string) => request<{ url: string }>(`/storage/files/${fileId}/url`),
+  trashFile: (fileId: string) =>
+    fetch(`${BASE}/storage/files/${fileId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${getToken()}` },
+    }).then((r) => r.status === 204),
+  restoreFile: (fileId: string) =>
+    request<{ restored: boolean }>(`/storage/files/${fileId}/restore`, { method: "POST" }),
 };
+
+export interface StorageQuota {
+  quotaGb: number;
+  usedBytes: string;
+  usedPct: number;
+}
+
+export interface StorageFile {
+  id: string;
+  kind: string;
+  name: string;
+  mime: string;
+  sizeBytes: string;
+  status: string;
+  createdAt: string;
+}
+
+/** A presigned-PUT grant: the browser uploads straight to object storage
+ *  with this URL, then confirms — file bytes never pass through the API. */
+export interface UploadGrant {
+  ok: true;
+  fileId: string;
+  uploadUrl: string;
+  alert80: boolean;
+}
 
 /** One agent's declarative config from the backend registry — what the
  *  Operations Center renders as a node, and what the fleet inspector shows. */

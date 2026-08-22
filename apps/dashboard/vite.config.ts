@@ -6,7 +6,9 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": "http://localhost:4317",
+      // Caddy fronts the api container (docker-compose no longer publishes
+      // 4317 directly) — WEB_PORT defaults to 8080 but this machine runs 8098.
+      "/api": process.env.API_PROXY_TARGET ?? "http://localhost:8098",
     },
   },
 });

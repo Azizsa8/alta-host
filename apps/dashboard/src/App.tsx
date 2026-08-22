@@ -9,8 +9,9 @@ import { ReviewQueue } from "./pages/ReviewQueue.js";
 import { ExecutiveReport } from "./pages/ExecutiveReport.js";
 import { AuditTrail } from "./pages/AuditTrail.js";
 import { Inbox } from "./pages/Inbox.js";
+import { Storage } from "./pages/Storage.js";
 
-type View = "ops" | "inbox" | "simulator" | "reviews" | "tickets" | "guests" | "report" | "audit";
+type View = "ops" | "inbox" | "simulator" | "reviews" | "tickets" | "guests" | "storage" | "report" | "audit";
 
 const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
   { key: "ops", label: "مركز العمليات", icon: "hub" },
@@ -19,6 +20,7 @@ const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
   { key: "reviews", label: "قائمة المراجعة", icon: "fact_check" },
   { key: "tickets", label: "لوحة التذاكر", icon: "confirmation_number" },
   { key: "guests", label: "النزلاء", icon: "groups" },
+  { key: "storage", label: "الملفات والتخزين", icon: "folder" },
   { key: "report", label: "التقرير التنفيذي", icon: "summarize" },
   { key: "audit", label: "سجل التدقيق", icon: "verified_user" },
 ];
@@ -30,6 +32,7 @@ const VIEW_TITLES: Record<View, string> = {
   reviews: "قائمة المراجعة",
   tickets: "لوحة التذاكر",
   guests: "النزلاء",
+  storage: "الملفات والتخزين",
   report: "التقرير التنفيذي",
   audit: "سجل التدقيق",
 };
@@ -234,6 +237,7 @@ export default function App() {
           {view === "reviews" && <ReviewQueue propertyId={staff.propertyId} refreshKey={refreshKey} onChanged={bumpRefresh} />}
           {view === "tickets" && <TicketBoard propertyId={staff.propertyId} refreshKey={refreshKey} onChanged={bumpRefresh} />}
           {view === "guests" && <Guests propertyId={staff.propertyId} refreshKey={refreshKey} />}
+          {view === "storage" && <Storage refreshKey={refreshKey} />}
           {view === "report" && <ExecutiveReport propertyId={staff.propertyId} refreshKey={refreshKey} />}
           {view === "audit" && <AuditTrail refreshKey={refreshKey} />}
         </div>

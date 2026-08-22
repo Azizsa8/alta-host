@@ -40,10 +40,14 @@ const webhookLimiter = rateLimit({
 app.use("/webhook/whatsapp", webhookLimiter);
 
 // General limit for the rest of the API — generous enough for normal
-// dashboard/staff usage, tight enough to blunt scripted abuse.
+// dashboard/staff usage, tight enough to blunt scripted abuse. A single
+// staff dashboard legitimately makes hundreds of calls per window
+// (metrics + inbox + storage polling across tabs), and behind Caddy all
+// of a hotel's front-desk machines can share one NAT'd IP — 100/15min
+// starved real sessions with 429s during live verification.
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 100,
+  limit: 2000,
   standardHeaders: true,
   legacyHeaders: false,
 });

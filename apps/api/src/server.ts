@@ -12,6 +12,7 @@ import { sseRouter } from "./modules/events/sse.js";
 import { startIngestWorker } from "./modules/ingest/queue.js";
 import { startStorageSweep } from "./modules/storage/sweep.js";
 import { startReviewPoll } from "./modules/reputation/poll.js";
+import { startContentScheduler } from "./modules/content/scheduler.js";
 import { isMastraOrchestrator } from "./modules/mastra/instance.js";
 
 const app = express();
@@ -85,6 +86,7 @@ app.listen(port, () => {
 startIngestWorker();
 startStorageSweep();
 startReviewPoll();
+startContentScheduler();
 logger.info(
   { orchestrator: isMastraOrchestrator() ? "mastra" : "legacy" },
   "ingest worker started"

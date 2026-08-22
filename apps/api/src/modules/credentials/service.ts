@@ -14,6 +14,8 @@ export const CREDENTIAL_KEYS = [
   "whatsapp.phoneNumberId",
   "google.oauthRefreshToken", // GBP reviews — §6-د, stored on account link
   "google.locationId",
+  "meta.pageToken", // Instagram/Facebook publishing — §6-هـ
+  "meta.pageId",
 ] as const;
 
 export type CredentialKey = (typeof CREDENTIAL_KEYS)[number];

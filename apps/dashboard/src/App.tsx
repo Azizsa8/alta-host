@@ -13,8 +13,9 @@ import { Storage } from "./pages/Storage.js";
 import { WorkOrders } from "./pages/WorkOrders.js";
 import { AgentCentre } from "./pages/AgentCentre.js";
 import { Reputation } from "./pages/Reputation.js";
+import { ContentStudio } from "./pages/ContentStudio.js";
 
-type View = "ops" | "inbox" | "simulator" | "reviews" | "tickets" | "workorders" | "guests" | "storage" | "agents" | "reputation" | "report" | "audit";
+type View = "ops" | "inbox" | "simulator" | "reviews" | "tickets" | "workorders" | "guests" | "storage" | "agents" | "reputation" | "content" | "report" | "audit";
 
 const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
   { key: "ops", label: "مركز العمليات", icon: "hub" },
@@ -25,6 +26,7 @@ const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
   { key: "workorders", label: "أوامر العمل", icon: "build" },
   { key: "agents", label: "مركز الوكلاء", icon: "smart_toy" },
   { key: "reputation", label: "السمعة الرقمية", icon: "star" },
+  { key: "content", label: "استوديو المحتوى", icon: "campaign" },
   { key: "guests", label: "النزلاء", icon: "groups" },
   { key: "storage", label: "الملفات والتخزين", icon: "folder" },
   { key: "report", label: "التقرير التنفيذي", icon: "summarize" },
@@ -40,6 +42,7 @@ const VIEW_TITLES: Record<View, string> = {
   workorders: "أوامر العمل",
   agents: "مركز الوكلاء",
   reputation: "السمعة الرقمية",
+  content: "استوديو المحتوى",
   guests: "النزلاء",
   storage: "الملفات والتخزين",
   report: "التقرير التنفيذي",
@@ -250,6 +253,7 @@ export default function App() {
           {view === "workorders" && <WorkOrders staff={staff} refreshKey={refreshKey} />}
           {view === "agents" && <AgentCentre staff={staff} refreshKey={refreshKey} />}
           {view === "reputation" && <Reputation staff={staff} refreshKey={refreshKey} />}
+          {view === "content" && <ContentStudio staff={staff} refreshKey={refreshKey} />}
           {view === "report" && <ExecutiveReport propertyId={staff.propertyId} refreshKey={refreshKey} />}
           {view === "audit" && <AuditTrail refreshKey={refreshKey} />}
         </div>

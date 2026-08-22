@@ -23,7 +23,10 @@ export type AltaEventBody =
   | { type: "workorder.closed"; workOrderId: string; priority: string }
   | { type: "review.fetched"; reviewId: string; stars: number; sentiment: string; topic: string }
   | { type: "review.alert"; reviewId: string; stars: number; topic: string; preview: string }
-  | { type: "review.replied"; reviewId: string; stars: number };
+  | { type: "review.replied"; reviewId: string; stars: number }
+  | { type: "content.status"; contentId: string; channel: string; status: string }
+  | { type: "content.published"; contentId: string; channel: string; resultUrl: string }
+  | { type: "content.failed"; contentId: string; channel: string; error: string };
 
 export type AltaEventType = AltaEventBody["type"];
 

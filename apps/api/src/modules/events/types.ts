@@ -16,7 +16,11 @@ export type AltaEventBody =
   | { type: "review.decided"; reviewItemId: string; decision: "approved" | "rejected"; reviewedBy: string }
   | { type: "ticket.created"; ticketId: string; department: string; urgency: string; summary: string }
   | { type: "ticket.escalated"; ticketId: string; department: string }
-  | { type: "storage.alert"; usedPct: number; quotaGb: number };
+  | { type: "storage.alert"; usedPct: number; quotaGb: number }
+  | { type: "workorder.created"; workOrderId: string; title: string; priority: string; location: string }
+  | { type: "workorder.critical"; workOrderId: string; title: string; location: string }
+  | { type: "workorder.updated"; workOrderId: string; status: string }
+  | { type: "workorder.closed"; workOrderId: string; priority: string };
 
 export type AltaEventType = AltaEventBody["type"];
 

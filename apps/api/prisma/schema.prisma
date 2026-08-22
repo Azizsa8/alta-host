@@ -294,3 +294,50 @@ model StorageFile {
   @@index([tenantId])
   @@index([status, trashedAt])
 }
+
+// §6-ج / §11-5: work orders are not tickets renamed — they carry
+// assignment, a checklist, photo evidence, and a manager-gated close for
+// critical faults. A WO may originate from a ticket (guest-reported) or
+// be raised directly by staff.
+model WorkOrder {
+  id         String    @id @default(uuid())
+  tenantId   String    @default("") // derived by DB trigger
+  propertyId String
+  ticketId   String?   // guest-reported origin, when there is one
+  title      String
+  category   String    // electrical | plumbing | hvac | furniture | other
+  priority   String    @default("normal") // critical | high | normal | low
+  status     String    @default("new") // new | assigned | in_progress | awaiting_confirm | closed
+  assigneeId String?
+  location   String    // room / area, free text ("غرفة 204")
+  checklist  Json      @default("[]") // [{item, done}]
+  createdBy  String
+  closedBy   String?
+  closedAt   DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  updates WorkOrderUpdate[]
+
+  @@index([propertyId, status])
+  @@index([assigneeId, status])
+  @@index([tenantId])
+}
+
+// Progress notes on a work order; photos reference Phase 4 storage files
+// (before/after evidence — §4 لوحة الصيانة).
+model WorkOrderUpdate {
+  id           String    @id @default(uuid())
+  tenantId     String    @default("") // derived by DB trigger
+  workOrderId  String
+  workOrder    WorkOrder @relation(fields: [workOrderId], references: [id])
+  authorId     String
+  authorName   String
+  note         String
+  photoFileIds Json      @default("[]") // StorageFile ids
+  statusTo     String?   // set when this update changed the WO status
+  createdAt    DateTime  @default(now())
+
+  @@index([workOrderId])
+  @@index([tenantId])
+}

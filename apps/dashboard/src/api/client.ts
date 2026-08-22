@@ -223,7 +223,45 @@ export const api = {
     }).then((r) => r.status === 204),
   restoreFile: (fileId: string) =>
     request<{ restored: boolean }>(`/storage/files/${fileId}/restore`, { method: "POST" }),
+  workOrders: () => request<WorkOrder[]>("/workorders"),
+  createWorkOrder: (payload: {
+    title: string;
+    category: string;
+    priority: string;
+    location: string;
+    assigneeId?: string;
+  }) => request<WorkOrder>("/workorders", { method: "POST", body: JSON.stringify(payload) }),
+  assignWorkOrder: (id: string, assigneeId: string) =>
+    request<WorkOrder>(`/workorders/${id}/assign`, { method: "POST", body: JSON.stringify({ assigneeId }) }),
+  addWorkOrderUpdate: (id: string, payload: { note: string; photoFileIds?: string[]; statusTo?: string }) =>
+    request<unknown>(`/workorders/${id}/updates`, { method: "POST", body: JSON.stringify(payload) }),
+  closeWorkOrder: (id: string, note?: string) =>
+    request<{ closed: boolean }>(`/workorders/${id}/close`, { method: "POST", body: JSON.stringify({ note }) }),
+  staffList: () => request<Array<{ id: string; name: string; role: string }>>("/staff"),
 };
+
+export interface WorkOrderUpdateEntry {
+  id: string;
+  authorName: string;
+  note: string;
+  photoFileIds: string[];
+  statusTo: string | null;
+  createdAt: string;
+}
+
+export interface WorkOrder {
+  id: string;
+  title: string;
+  category: string;
+  priority: "critical" | "high" | "normal" | "low";
+  status: "new" | "assigned" | "in_progress" | "awaiting_confirm" | "closed";
+  assigneeId: string | null;
+  assigneeName?: string | null;
+  createdByName?: string | null;
+  location: string;
+  createdAt: string;
+  updates: WorkOrderUpdateEntry[];
+}
 
 export interface StorageQuota {
   quotaGb: number;

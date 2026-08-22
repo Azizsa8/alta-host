@@ -136,6 +136,32 @@ function describe(evt: LiveEvent): string {
       return `تذكرة جديدة (${String(p.department)}): ${String(p.summary ?? "").slice(0, 50)}`;
     case "ticket.escalated":
       return `تصعيد تذكرة في ${String(p.department)} — تجاوزت المهلة`;
+    case "conversation.takenover":
+      return `👤 استلم ${String(p.byName ?? "موظف")} المحادثة — الذكاء متوقف`;
+    case "conversation.resumed":
+      return `↩ أُعيدت المحادثة للذكاء الاصطناعي`;
+    case "storage.alert":
+      return `⚠ التخزين وصل ${String(p.usedPct)}٪ من حصة ${String(p.quotaGb)}GB`;
+    case "workorder.created":
+      return `أمر عمل جديد: ${String(p.title ?? "").slice(0, 40)} (${String(p.location ?? "")})`;
+    case "workorder.critical":
+      return `🚨 عطل حرج: ${String(p.title ?? "").slice(0, 40)} — ${String(p.location ?? "")} — تصعيد فوري`;
+    case "workorder.updated":
+      return `تحديث أمر عمل → ${String(p.status)}`;
+    case "workorder.closed":
+      return `أُغلق أمر عمل (${p.priority === "critical" ? "حرج — بتأكيد المدير" : "عادي"})`;
+    case "review.fetched":
+      return `تقييم Google جديد: ${"★".repeat(Number(p.stars) || 0)} (${String(p.topic)})`;
+    case "review.alert":
+      return `🚨 تقييم يستدعي التدخل (${String(p.topic)}): ${String(p.preview ?? "").slice(0, 50)}`;
+    case "review.replied":
+      return `رد معتمد نُشر على تقييم ${"★".repeat(Number(p.stars) || 0)}`;
+    case "content.status":
+      return `محتوى ${String(p.channel)} → ${String(p.status)}`;
+    case "content.published":
+      return `📣 نُشر محتوى على ${String(p.channel)}`;
+    case "content.failed":
+      return `⚠ فشل نشر محتوى على ${String(p.channel)}`;
     default:
       return evt.type;
   }

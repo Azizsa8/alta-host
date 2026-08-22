@@ -149,23 +149,6 @@ async function dispatch(
 ): Promise<DispatchOutcome> {
   const agentKey = agentKeyFor(intent.type);
 
-  // ORCHESTRATOR=mastra routes through the workflow runtime, where the
-  // review gate is a durable suspend() rather than a queue-and-return.
-  // The workflow emits its own agent.started/completed events.
-  if (isMastraOrchestrator()) {
-    return startIntentRun({
-      propertyId: ctx.propertyId,
-      guestId: ctx.guestId,
-      conversationId: ctx.conversationId,
-      intentId: ctx.intentId,
-      intentType: intent.type,
-      params: intent.params,
-      urgency,
-      agentKey,
-      autoApprove: AUTO_APPROVE_INTENTS.has(intent.type),
-    });
-  }
-
   // §4 مركز الوكلاء: a disabled agent produces NO AI draft — the message
   // goes straight to staff via the review queue, empty-handed on purpose.
   if (!(await isAgentEnabled(ctx.propertyId, agentKey))) {
@@ -194,6 +177,23 @@ async function dispatch(
       durationMs: 0,
     });
     return { intentType: intent.type, status: "queued_for_review" };
+  }
+
+  // ORCHESTRATOR=mastra routes through the workflow runtime, where the
+  // review gate is a durable suspend() rather than a queue-and-return.
+  // The workflow emits its own agent.started/completed events.
+  if (isMastraOrchestrator()) {
+    return startIntentRun({
+      propertyId: ctx.propertyId,
+      guestId: ctx.guestId,
+      conversationId: ctx.conversationId,
+      intentId: ctx.intentId,
+      intentType: intent.type,
+      params: intent.params,
+      urgency,
+      agentKey,
+      autoApprove: AUTO_APPROVE_INTENTS.has(intent.type),
+    });
   }
 
   await emitEvent(ctx.propertyId, {

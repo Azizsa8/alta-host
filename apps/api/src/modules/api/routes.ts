@@ -19,6 +19,7 @@ import {
   WO_CATEGORIES,
   WO_PRIORITIES,
 } from "../workorders/service.js";
+import { setAgentEnabled } from "../knowledge/service.js";
 import { recordAudit, auditContextFrom, verifyAuditChain } from "../audit/service.js";
 import { emitEvent } from "../events/bus.js";
 import { sendWhatsAppMessage } from "../whatsapp/gateway.js";
@@ -527,6 +528,135 @@ apiRouter.get(
       orderBy: { name: "asc" },
     });
     res.json(staff);
+  })
+);
+
+// ---- knowledge base + agent policies (§6-أ / §4 مركز الوكلاء) ----------
+
+apiRouter.get(
+  "/knowledge",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "knowledge.view")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const items = await prisma.knowledgeItem.findMany({
+      where: { propertyId: req.staff!.propertyId },
+      orderBy: { updatedAt: "desc" },
+      take: 200,
+    });
+    res.json(items);
+  })
+);
+
+const KnowledgeBody = z.object({
+  title: z.string().min(2).max(200),
+  contentAr: z.string().min(2).max(4000),
+  contentEn: z.string().max(4000).optional(),
+  tags: z.array(z.string().min(2).max(40)).max(20).optional(),
+});
+
+apiRouter.post(
+  "/knowledge",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "knowledge.manage")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const body = KnowledgeBody.parse(req.body);
+    const item = await prisma.knowledgeItem.create({
+      data: {
+        propertyId: req.staff!.propertyId,
+        title: body.title,
+        contentAr: body.contentAr,
+        contentEn: body.contentEn ?? "",
+        tags: body.tags ?? [],
+      },
+    });
+    res.status(201).json(item);
+  })
+);
+
+// Status is its own endpoint: approval is the act agents trust (§6-أ),
+// so it is explicit, audited, and never a side effect of an edit.
+apiRouter.post(
+  "/knowledge/:id/status",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "knowledge.manage")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const { id } = IdParam.parse(req.params);
+    const { status } = z.object({ status: z.enum(["draft", "approved", "retired"]) }).parse(req.body);
+    const existing = await prisma.knowledgeItem.findUnique({ where: { id } });
+    if (!existing || existing.propertyId !== req.staff!.propertyId) {
+      res.status(404).json({ error: "knowledge item not found" });
+      return;
+    }
+    const item = await prisma.knowledgeItem.update({
+      where: { id },
+      data: { status, approvedBy: status === "approved" ? req.staff!.staffId : existing.approvedBy },
+    });
+    await recordAudit({
+      actorName: req.staff!.name,
+      actorId: req.staff!.staffId,
+      propertyId: req.staff!.propertyId,
+      action: `knowledge.${status}`,
+      resourceType: "KnowledgeItem",
+      resourceId: id,
+      outcome: "success",
+      metadata: { title: existing.title },
+    });
+    res.json(item);
+  })
+);
+
+apiRouter.get(
+  "/agent-policies",
+  asyncRoute(async (req, res) => {
+    const policies = await prisma.agentPolicy.findMany({ where: { propertyId: req.staff!.propertyId } });
+    res.json(policies);
+  })
+);
+
+apiRouter.patch(
+  "/agent-policies/:agentKey",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "agents.toggle")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const { agentKey } = z.object({ agentKey: z.string().min(2).max(60) }).parse(req.params);
+    const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body);
+    const policy = await setAgentEnabled({
+      propertyId: req.staff!.propertyId,
+      agentKey,
+      enabled,
+      updatedBy: req.staff!.staffId,
+    });
+    await recordAudit({
+      actorName: req.staff!.name,
+      actorId: req.staff!.staffId,
+      propertyId: req.staff!.propertyId,
+      action: enabled ? "agent.enable" : "agent.disable",
+      resourceType: "AgentPolicy",
+      resourceId: agentKey,
+      outcome: "success",
+    });
+    res.json(policy);
+  })
+);
+
+apiRouter.get(
+  "/agent-runs",
+  asyncRoute(async (req, res) => {
+    const agentKey = typeof req.query.agentKey === "string" ? req.query.agentKey : undefined;
+    const runs = await prisma.agentRun.findMany({
+      where: { propertyId: req.staff!.propertyId, ...(agentKey ? { agentKey } : {}) },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+    res.json(runs);
   })
 );
 

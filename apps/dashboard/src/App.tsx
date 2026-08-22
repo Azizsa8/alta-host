@@ -11,8 +11,9 @@ import { AuditTrail } from "./pages/AuditTrail.js";
 import { Inbox } from "./pages/Inbox.js";
 import { Storage } from "./pages/Storage.js";
 import { WorkOrders } from "./pages/WorkOrders.js";
+import { AgentCentre } from "./pages/AgentCentre.js";
 
-type View = "ops" | "inbox" | "simulator" | "reviews" | "tickets" | "workorders" | "guests" | "storage" | "report" | "audit";
+type View = "ops" | "inbox" | "simulator" | "reviews" | "tickets" | "workorders" | "guests" | "storage" | "agents" | "report" | "audit";
 
 const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
   { key: "ops", label: "مركز العمليات", icon: "hub" },
@@ -21,6 +22,7 @@ const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
   { key: "reviews", label: "قائمة المراجعة", icon: "fact_check" },
   { key: "tickets", label: "لوحة التذاكر", icon: "confirmation_number" },
   { key: "workorders", label: "أوامر العمل", icon: "build" },
+  { key: "agents", label: "مركز الوكلاء", icon: "smart_toy" },
   { key: "guests", label: "النزلاء", icon: "groups" },
   { key: "storage", label: "الملفات والتخزين", icon: "folder" },
   { key: "report", label: "التقرير التنفيذي", icon: "summarize" },
@@ -34,6 +36,7 @@ const VIEW_TITLES: Record<View, string> = {
   reviews: "قائمة المراجعة",
   tickets: "لوحة التذاكر",
   workorders: "أوامر العمل",
+  agents: "مركز الوكلاء",
   guests: "النزلاء",
   storage: "الملفات والتخزين",
   report: "التقرير التنفيذي",
@@ -242,6 +245,7 @@ export default function App() {
           {view === "guests" && <Guests propertyId={staff.propertyId} refreshKey={refreshKey} />}
           {view === "storage" && <Storage refreshKey={refreshKey} />}
           {view === "workorders" && <WorkOrders staff={staff} refreshKey={refreshKey} />}
+          {view === "agents" && <AgentCentre staff={staff} refreshKey={refreshKey} />}
           {view === "report" && <ExecutiveReport propertyId={staff.propertyId} refreshKey={refreshKey} />}
           {view === "audit" && <AuditTrail refreshKey={refreshKey} />}
         </div>

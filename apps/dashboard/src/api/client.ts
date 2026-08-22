@@ -238,7 +238,42 @@ export const api = {
   closeWorkOrder: (id: string, note?: string) =>
     request<{ closed: boolean }>(`/workorders/${id}/close`, { method: "POST", body: JSON.stringify({ note }) }),
   staffList: () => request<Array<{ id: string; name: string; role: string }>>("/staff"),
+  knowledge: () => request<KnowledgeItem[]>("/knowledge"),
+  createKnowledge: (payload: { title: string; contentAr: string; contentEn?: string; tags?: string[] }) =>
+    request<KnowledgeItem>("/knowledge", { method: "POST", body: JSON.stringify(payload) }),
+  setKnowledgeStatus: (id: string, status: "draft" | "approved" | "retired") =>
+    request<KnowledgeItem>(`/knowledge/${id}/status`, { method: "POST", body: JSON.stringify({ status }) }),
+  agentPolicies: () => request<AgentPolicyRow[]>("/agent-policies"),
+  setAgentEnabled: (agentKey: string, enabled: boolean) =>
+    request<AgentPolicyRow>(`/agent-policies/${agentKey}`, { method: "PATCH", body: JSON.stringify({ enabled }) }),
+  agentRuns: (agentKey?: string) =>
+    request<AgentRunRow[]>(`/agent-runs${agentKey ? `?agentKey=${agentKey}` : ""}`),
 };
+
+export interface KnowledgeItem {
+  id: string;
+  title: string;
+  contentAr: string;
+  contentEn: string;
+  tags: string[];
+  status: "draft" | "approved" | "retired";
+  updatedAt: string;
+}
+
+export interface AgentPolicyRow {
+  agentKey: string;
+  enabled: boolean;
+}
+
+export interface AgentRunRow {
+  id: string;
+  agentKey: string;
+  intentType: string;
+  policyApplied: string;
+  durationMs: number;
+  outputs: { status?: string; replyPreview?: string };
+  createdAt: string;
+}
 
 export interface WorkOrderUpdateEntry {
   id: string;

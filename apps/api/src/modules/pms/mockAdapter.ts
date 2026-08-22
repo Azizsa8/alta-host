@@ -1,5 +1,6 @@
 import { prisma } from "../../db.js";
 import { MewsPMSAdapter } from "./mewsAdapter.js";
+import { getCredential } from "../credentials/service.js";
 import type { AvailabilityResult, BillingStatus, PMSAdapter, ReservationUpdateResult } from "./types.js";
 
 // Stands in for a real PMS during local dev and demos (PMS_PROVIDER=mock,
@@ -44,6 +45,41 @@ export class MockPMSAdapter implements PMSAdapter {
       checkOut: reservation.checkOut.toISOString(),
     };
   }
+}
+
+/**
+ * Per-property adapter. Credentials come from the encrypted vault first,
+ * falling back to env vars so an existing single-tenant deploy keeps
+ * working unchanged — a multi-tenant deployment cannot use env vars at
+ * all, since every hotel has its own Mews tokens.
+ */
+export async function createPMSAdapterForProperty(propertyId: string): Promise<PMSAdapter> {
+  const provider = process.env.PMS_PROVIDER ?? "mock";
+  if (provider !== "mews") return new MockPMSAdapter();
+
+  const clientToken =
+    (await getCredential(propertyId, "mews.clientToken", "pms adapter")) ?? process.env.MEWS_CLIENT_TOKEN;
+  const accessToken =
+    (await getCredential(propertyId, "mews.accessToken", "pms adapter")) ?? process.env.MEWS_ACCESS_TOKEN;
+
+  if (!clientToken || !accessToken) {
+    console.warn(
+      `PMS_PROVIDER=mews but no Mews credentials for property ${propertyId} (vault or env) — using MockPMSAdapter.`
+    );
+    return new MockPMSAdapter();
+  }
+
+  const platformAddress =
+    (await getCredential(propertyId, "mews.platformAddress", "pms adapter")) ??
+    process.env.MEWS_PLATFORM_ADDRESS ??
+    "https://api.mews-demo.com";
+
+  return new MewsPMSAdapter({
+    platformAddress,
+    clientToken,
+    accessToken,
+    client: process.env.MEWS_CLIENT_NAME ?? "ALTA 1.0.0",
+  });
 }
 
 export function createPMSAdapter(): PMSAdapter {

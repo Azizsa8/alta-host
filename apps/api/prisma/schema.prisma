@@ -21,6 +21,7 @@ model Property {
   staff         StaffMember[]
   reservations  Reservation[]
   reviews       Review[]
+  credentials   PropertyCredential[]
 }
 
 model Guest {
@@ -199,4 +200,27 @@ model AuditEvent {
   @@index([propertyId, seq])
   @@index([actorId, seq])
   @@index([action, seq])
+}
+
+// Per-property third-party credentials, encrypted at rest.
+//
+// These were global env vars, which is wrong before it is insecure: every
+// hotel has its own Mews tokens, so one shared value cannot serve a
+// multi-tenant deployment at all. Values are AES-256-GCM encrypted and
+// never leave the server in plaintext — the API exposes which keys exist,
+// never what they contain.
+model PropertyCredential {
+  id             String   @id @default(uuid())
+  propertyId     String
+  property       Property @relation(fields: [propertyId], references: [id])
+  key            String   // e.g. mews.clientToken, whatsapp.cloudApiToken
+  ciphertext     String   // base64 AES-256-GCM
+  iv             String   // base64, unique per write
+  authTag        String   // base64, detects tampering with the stored value
+  lastRotatedAt  DateTime @default(now())
+  lastAccessedAt DateTime?
+  createdAt      DateTime @default(now())
+
+  @@unique([propertyId, key])
+  @@index([propertyId])
 }

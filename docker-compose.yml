@@ -70,6 +70,7 @@ services:
       # back to an insecure hardcoded dev value with a warning logged if
       # unset. Set a real random value for anything beyond local dev.
       JWT_SECRET: ${JWT_SECRET:-}
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-}
       AUTO_APPROVE_INTENTS: ${AUTO_APPROVE_INTENTS:-}
     expose:
       - "4317"

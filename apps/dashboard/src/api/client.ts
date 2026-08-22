@@ -248,7 +248,33 @@ export const api = {
     request<AgentPolicyRow>(`/agent-policies/${agentKey}`, { method: "PATCH", body: JSON.stringify({ enabled }) }),
   agentRuns: (agentKey?: string) =>
     request<AgentRunRow[]>(`/agent-runs${agentKey ? `?agentKey=${agentKey}` : ""}`),
+  reputation: () => request<ReputationData>("/reputation/reviews"),
+  linkGoogle: (accountRef: string, oauthRefreshToken?: string) =>
+    request<{ linked: boolean }>("/reputation/link", { method: "POST", body: JSON.stringify({ accountRef, oauthRefreshToken }) }),
+  syncReviews: () => request<{ fetched: number; new: number }>("/reputation/sync", { method: "POST" }),
+  publishReviewReply: (id: string, editedReply?: string) =>
+    request<{ published: boolean }>(`/reputation/reviews/${id}/approve`, { method: "POST", body: JSON.stringify({ editedReply }) }),
 };
+
+export interface GoogleReviewRow {
+  id: string;
+  stars: number;
+  text: string;
+  author: string;
+  reviewedAt: string;
+  sentiment: "positive" | "neutral" | "negative";
+  topic: string;
+  draftReply: string;
+  replyStatus: "none" | "draft" | "approved" | "published";
+  publishedAt: string | null;
+}
+
+export interface ReputationData {
+  linked: boolean;
+  accountRef: string | null;
+  average: number;
+  reviews: GoogleReviewRow[];
+}
 
 export interface KnowledgeItem {
   id: string;

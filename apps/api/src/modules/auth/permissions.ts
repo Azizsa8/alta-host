@@ -40,6 +40,9 @@ export const ACTIONS = [
   "knowledge.view",
   "knowledge.manage", // create/edit/approve/retire — approval is what agents trust
   "agents.toggle", // مركز الوكلاء on/off (§4)
+  "reputation.view",
+  "reputation.reply", // approve + publish a review reply — no auto-publish (§7)
+  "reputation.link", // link/unlink the platform account
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -73,6 +76,9 @@ const POLICY: Record<Action, Role[]> = {
   "knowledge.view": [...FRONT_OF_HOUSE, "maintenance_manager", "marketing_manager"],
   "knowledge.manage": MANAGERS,
   "agents.toggle": MANAGERS,
+  "reputation.view": [...MANAGERS, "marketing_manager", "reception"],
+  "reputation.reply": [...MANAGERS, "marketing_manager"],
+  "reputation.link": MANAGERS,
 };
 
 export function can(role: string, action: Action): boolean {

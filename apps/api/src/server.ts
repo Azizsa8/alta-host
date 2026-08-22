@@ -11,6 +11,7 @@ import { authRouter } from "./modules/auth/routes.js";
 import { sseRouter } from "./modules/events/sse.js";
 import { startIngestWorker } from "./modules/ingest/queue.js";
 import { startStorageSweep } from "./modules/storage/sweep.js";
+import { startReviewPoll } from "./modules/reputation/poll.js";
 import { isMastraOrchestrator } from "./modules/mastra/instance.js";
 
 const app = express();
@@ -83,6 +84,7 @@ app.listen(port, () => {
 // volume outgrows one process.
 startIngestWorker();
 startStorageSweep();
+startReviewPoll();
 logger.info(
   { orchestrator: isMastraOrchestrator() ? "mastra" : "legacy" },
   "ingest worker started"

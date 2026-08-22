@@ -12,6 +12,8 @@ export const CREDENTIAL_KEYS = [
   "mews.platformAddress",
   "whatsapp.cloudApiToken",
   "whatsapp.phoneNumberId",
+  "google.oauthRefreshToken", // GBP reviews — §6-د, stored on account link
+  "google.locationId",
 ] as const;
 
 export type CredentialKey = (typeof CREDENTIAL_KEYS)[number];

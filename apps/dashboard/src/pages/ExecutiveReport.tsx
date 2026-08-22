@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Chart, type ChartConfiguration } from "chart.js/auto";
-import { api, type DailyReport } from "../api/client.js";
+import { api, type DailyReport, type ReportKpis } from "../api/client.js";
 
 const DEPARTMENT_LABELS: Record<string, string> = {
   reception: "الاستقبال",
@@ -62,6 +62,75 @@ function DepartmentChart({ data }: { data: Record<string, number> }) {
   );
 }
 
+function fmtDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds} ثانية`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)} دقيقة`;
+  return `${(seconds / 3600).toFixed(1)} ساعة`;
+}
+
+/** The pilot's weekly KPIs (آخر ٧ أيام) — measured from real message
+ *  timestamps and run outcomes, never self-reported. Null = «لا بيانات
+ *  بعد», deliberately distinct from a bad zero. */
+function KpiRow({ kpis }: { kpis: ReportKpis }) {
+  const tiles: Array<{ label: string; value: string; sub: string; good?: boolean | null }> = [
+    {
+      label: "زمن أول رد (وسيط)",
+      value: kpis.medianResponseSeconds !== null ? fmtDuration(kpis.medianResponseSeconds) : "—",
+      sub: kpis.respondedCount > 0 ? `${kpis.respondedCount} رد خلال ${kpis.windowDays} أيام` : "لا بيانات بعد",
+      good: kpis.medianResponseSeconds !== null ? kpis.medianResponseSeconds <= 60 : null,
+    },
+    {
+      label: "نسبة الحل الآلي",
+      value: kpis.autoResolutionPct !== null ? `${kpis.autoResolutionPct}٪` : "—",
+      sub: kpis.totalRuns > 0 ? `من ${kpis.totalRuns} معالجة · ${kpis.takeovers} استلام بشري` : "لا بيانات بعد",
+      good: kpis.autoResolutionPct !== null ? kpis.autoResolutionPct >= 50 : null,
+    },
+    {
+      label: "رضا النزلاء",
+      value:
+        kpis.googleStarsAvg !== null
+          ? `⭐ ${kpis.googleStarsAvg}`
+          : kpis.positiveSentimentPct !== null
+            ? `${kpis.positiveSentimentPct}٪ إيجابي`
+            : "—",
+      sub:
+        kpis.googleStarsAvg !== null
+          ? `${kpis.googleReviewCount} تقييم Google${kpis.positiveSentimentPct !== null ? ` · ${kpis.positiveSentimentPct}٪ رسائل إيجابية` : ""}`
+          : "لا بيانات بعد",
+      good: kpis.googleStarsAvg !== null ? kpis.googleStarsAvg >= 4 : null,
+    },
+    {
+      label: "الالتزام بالمهل (SLA)",
+      value: kpis.slaCompliancePct !== null ? `${kpis.slaCompliancePct}٪` : "—",
+      sub: kpis.slaCompliancePct !== null ? "تذاكر أُنجزت ضمن مهلتها" : "لا تذاكر هذا الأسبوع",
+      good: kpis.slaCompliancePct !== null ? kpis.slaCompliancePct >= 90 : null,
+    },
+  ];
+
+  return (
+    <div className="row mb-4">
+      {tiles.map((t) => (
+        <div className="col-md-6 col-xl-3 mb-3 mb-xl-0" key={t.label}>
+          <div className="card h-100">
+            <div className="card-body py-3">
+              <p className="text-xs text-uppercase text-secondary font-weight-bolder mb-1">{t.label}</p>
+              <h5 className="mb-0">
+                {t.value}
+                {t.good !== null && (
+                  <span className={`badge badge-sm ms-2 ${t.good ? "bg-gradient-success" : "bg-gradient-warning"}`}>
+                    {t.good ? "جيد" : "يحتاج انتباه"}
+                  </span>
+                )}
+              </h5>
+              <p className="text-xs text-secondary mb-0 mt-1">{t.sub}</p>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ExecutiveReport({ propertyId, refreshKey }: { propertyId: string; refreshKey: number }) {
   const [report, setReport] = useState<DailyReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,6 +151,7 @@ export function ExecutiveReport({ propertyId, refreshKey }: { propertyId: string
 
   return (
     <>
+      <KpiRow kpis={report.kpis} />
       <p className="text-sm text-secondary mb-4">موجز المدير التنفيذي اليومي — توصيات، لا مجرد أرقام.</p>
 
       <div className="row">

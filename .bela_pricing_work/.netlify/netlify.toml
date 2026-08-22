@@ -1,0 +1,35 @@
+headersOrigin = "config"
+plugins = []
+redirects = []
+
+[functions]
+
+[functions."*"]
+
+[build]
+publish = "/home/ais04/Downloads/ALTA-HOST/App/.bela_pricing_work/site"
+publishOrigin = "config"
+base = "/home/ais04/Downloads/ALTA-HOST/App/.bela_pricing_work"
+
+[build.environment]
+
+[build.processing]
+
+[build.processing.css]
+
+[build.processing.html]
+
+[build.processing.images]
+
+[build.processing.js]
+
+[build.services]
+
+[[headers]]
+for = "/*"
+
+[headers.values]
+X-Frame-Options = "SAMEORIGIN"
+X-Content-Type-Options = "nosniff"
+Referrer-Policy = "no-referrer"
+X-Robots-Tag = "noindex, nofollow"

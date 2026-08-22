@@ -1,0 +1,277 @@
+<meta charset="utf-8">
+<title>حاسبة تسعير مخزون بيلا</title>
+<style>
+:root{
+  --bg:#f2efe9; --bg-panel:#fffefb; --ink:#23201b; --ink-dim:#6b655c;
+  --line:#ddd6c8; --accent:#c1531f; --accent-ink:#fffefb;
+  --good:#4b7a51; --warn:#96701a; --bad:#a63f35; --bar-track:#e7e1d3;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#171613; --bg-panel:#1e1c18; --ink:#ede7db; --ink-dim:#a79d8c;
+    --line:#37332b; --accent:#e07a3f; --accent-ink:#171613;
+    --good:#7cae82; --warn:#d9ab4a; --bad:#d97e70; --bar-track:#2b2822;
+  }
+}
+:root[data-theme="dark"]{ --bg:#171613; --bg-panel:#1e1c18; --ink:#ede7db; --ink-dim:#a79d8c; --line:#37332b; --accent:#e07a3f; --accent-ink:#171613; --good:#7cae82; --warn:#d9ab4a; --bad:#d97e70; --bar-track:#2b2822; }
+:root[data-theme="light"]{ --bg:#f2efe9; --bg-panel:#fffefb; --ink:#23201b; --ink-dim:#6b655c; --line:#ddd6c8; --accent:#c1531f; --accent-ink:#fffefb; --good:#4b7a51; --warn:#96701a; --bad:#a63f35; --bar-track:#e7e1d3; }
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:"Segoe UI","Tahoma","Geeza Pro","Noto Naskh Arabic","Noto Sans Arabic",Arial,sans-serif;line-height:1.6;direction:rtl;}
+.num{font-family:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;}
+.wrap{max-width:1400px;margin:0 auto;padding:1.5rem;}
+h1{font-size:1.4rem;margin:0 0 .2rem;}
+.sub{color:var(--ink-dim);font-size:.85rem;margin:0 0 1.2rem;}
+
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-bottom:1rem;position:sticky;top:0;z-index:5;}
+.stat{background:var(--bg-panel);padding:.8rem .9rem;}
+.stat .l{font-size:.68rem;color:var(--ink-dim);margin-bottom:.25rem;}
+.stat .v{font-size:1.1rem;font-weight:700;}
+.stat.target .v{color:var(--accent);}
+.gauge{height:6px;background:var(--bar-track);border-radius:3px;margin-top:.4rem;overflow:hidden;position:relative;}
+.gauge .fill{height:100%;background:var(--accent);}
+.gauge .band{position:absolute;top:0;bottom:0;background:color-mix(in srgb, var(--good) 35%, transparent);}
+
+.controls{display:flex;flex-wrap:wrap;gap:.7rem;align-items:center;background:var(--bg-panel);border:1px solid var(--line);border-radius:6px;padding:.8rem 1rem;margin-bottom:1rem;}
+.controls input[type=text]{flex:1;min-width:160px;padding:.45rem .6rem;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);font-family:inherit;}
+.chip{padding:.35rem .8rem;border-radius:20px;border:1px solid var(--line);background:var(--bg);color:var(--ink-dim);font-size:.8rem;cursor:pointer;user-select:none;}
+.chip.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+.controls .reserve{display:flex;align-items:center;gap:.5rem;font-size:.82rem;}
+.controls input[type=number]{width:60px;padding:.3rem .4rem;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);font-family:inherit;}
+button{cursor:pointer;border:1px solid var(--line);background:var(--bg-panel);color:var(--ink);padding:.5rem 1rem;border-radius:4px;font-family:inherit;font-size:.85rem;}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700;}
+button:hover{filter:brightness(0.97);}
+
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--bg-panel);}
+table{border-collapse:collapse;width:100%;font-size:.82rem;min-width:960px;}
+thead th{position:sticky;top:0;background:var(--bg-panel);text-align:right;font-size:.68rem;color:var(--ink-dim);border-bottom:1px solid var(--line);padding:.5rem .6rem;white-space:nowrap;}
+tbody td{padding:.4rem .6rem;border-bottom:1px solid var(--line);vertical-align:middle;}
+tbody tr:hover{background:var(--bar-track);}
+td.numc{text-align:left;font-family:ui-monospace,monospace;}
+.pricein{width:90px;padding:.3rem .4rem;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);font-family:ui-monospace,monospace;text-align:left;direction:ltr;}
+.codelink{color:var(--accent);text-decoration:none;font-weight:700;}
+.codelink:hover{text-decoration:underline;}
+.bktag{font-size:.66rem;padding:.1rem .4rem;border-radius:3px;background:var(--bar-track);white-space:nowrap;}
+.conftag{font-size:.66rem;font-weight:700;padding:.1rem .4rem;border-radius:3px;white-space:nowrap;}
+.conftag.good{background:color-mix(in srgb, var(--good) 25%, transparent);color:var(--good);}
+.conftag.warn{background:color-mix(in srgb, var(--warn) 25%, transparent);color:var(--warn);}
+.conftag.bad{background:color-mix(in srgb, var(--bad) 25%, transparent);color:var(--bad);}
+.conftag.pending{background:var(--bar-track);color:var(--ink-dim);}
+.pager{display:flex;justify-content:center;align-items:center;gap:.6rem;padding:.9rem;font-size:.82rem;}
+.pager button{padding:.3rem .7rem;}
+
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:50;padding:2rem;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--bg-panel);border-radius:8px;max-width:800px;width:100%;max-height:85vh;overflow:auto;padding:1.5rem;}
+.modal h2{margin-top:0;}
+.modal table{width:100%;font-size:.85rem;}
+.modal-actions{display:flex;gap:.6rem;margin-top:1rem;justify-content:flex-end;}
+
+@media print{
+  body{direction:rtl;background:#fff;}
+  .controls,.summary,.pager,button,.no-print{display:none !important;}
+  .modal-bg{position:static;background:none;display:block !important;}
+  .modal{max-height:none;overflow:visible;box-shadow:none;border:none;}
+}
+</style>
+
+<div class="wrap">
+  <h1>حاسبة تسعير مخزون بيلا</h1>
+  <p class="sub">2,590 صنفًا · الأسعار الافتراضية مأخوذة من بحث سوقي مستقل لجميع الأصناف (100%). اختر مجموعات، عدّل الأسعار مباشرة، خصّص نسبة احتياطي التلف، وأنشئ عرض سعر قابل للطباعة.</p>
+
+  <div class="summary">
+    <div class="stat"><div class="l">عدد الأصناف المعروضة</div><div class="v num" id="statCount">–</div></div>
+    <div class="stat"><div class="l">إجمالي التكلفة الأصلية (ر.س)</div><div class="v num" id="statOrigTotal">–</div></div>
+    <div class="stat"><div class="l">الإجمالي بعد التعديل (ر.س)</div><div class="v num" id="statEditedTotal">–</div></div>
+    <div class="stat"><div class="l">احتياطي التلف/التخزين</div><div class="v num" id="statReserveAmt">–</div></div>
+    <div class="stat target"><div class="l">الصافي بعد الاحتياطي (الهدف: 1.40–1.50 مليون)</div><div class="v num" id="statNet">–</div>
+      <div class="gauge"><div class="band" id="gaugeBand"></div><div class="fill" id="gaugeFill"></div></div>
+    </div>
+    <div class="stat"><div class="l">المحدد لعرض السعر</div><div class="v num" id="statSelected">–</div></div>
+  </div>
+
+  <div class="controls">
+    <input type="text" id="search" placeholder="ابحث بالكود أو الوصف أو العلامة...">
+    <div class="chip active" data-bk="all">الكل</div>
+    <div class="chip" data-bk="machinery">آلات</div>
+    <div class="chip" data-bk="premium">متميزة</div>
+    <div class="chip" data-bk="other">متوسطة</div>
+    <div class="chip" data-bk="draper">دريبر</div>
+    <div class="reserve">
+      نسبة الاحتياطي: <input type="number" id="reservePct" value="10" min="0" max="90" step="1">%
+    </div>
+    <button id="btnCalibrate">معايرة سريعة لهدف 1.45 مليون</button>
+    <button id="btnReset">إعادة تعيين الأسعار</button>
+    <button class="primary" id="btnQuote">إنشاء عرض سعر (<span id="selCount">0</span>)</button>
+  </div>
+
+  <div class="tblwrap">
+    <table>
+      <thead>
+        <tr>
+          <th>تحديد</th><th>الكود</th><th>الوصف</th><th>العلامة</th><th>الفئة</th>
+          <th>الكمية</th><th>التكلفة الأصلية</th><th>الثقة</th><th>السعر المعدّل</th><th>الإجمالي</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="pager">
+      <button id="prevPage">السابق</button>
+      <span id="pageInfo" class="num">1 / 1</span>
+      <button id="nextPage">التالي</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="quoteModal">
+  <div class="modal">
+    <h2>عرض سعر</h2>
+    <div id="quoteBody"></div>
+    <div class="modal-actions no-print">
+      <button id="btnPrint">طباعة</button>
+      <button class="primary" id="btnCloseQuote">إغلاق</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DATA = __DATA_JSON__;
+const BK_LABEL = {machinery:'آلات', premium:'متميزة', other:'متوسطة', draper:'دريبر'};
+const CONF_CLASS = {'مرتفع':'good','متوسط':'warn','منخفض':'bad'};
+
+let edited = {};
+let selected = new Set();
+let filterBk = 'all';
+let searchTerm = '';
+let page = 0;
+const PAGE_SIZE = 80;
+
+function filteredData(){
+  return DATA.filter(r => {
+    if (filterBk !== 'all' && r.bk !== filterBk) return false;
+    if (searchTerm) {
+      const s = searchTerm.toLowerCase();
+      if (!r.code.toLowerCase().includes(s) && !r.d.toLowerCase().includes(s) && !r.b.toLowerCase().includes(s)) return false;
+    }
+    return true;
+  });
+}
+
+function priceOf(r){ return edited.hasOwnProperty(r.i) ? edited[r.i] : (r.pp != null ? r.pp : r.u); }
+function fmt(n){ return Math.round(n).toLocaleString('en-US'); }
+function googleImgUrl(r){
+  const q = encodeURIComponent(`${r.b} ${r.code} ${r.d}`.slice(0,120));
+  return `https://www.google.com/search?tbm=isch&q=${q}`;
+}
+
+function render(){
+  const data = filteredData();
+  const totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
+  if (page >= totalPages) page = totalPages - 1;
+  const pageData = data.slice(page*PAGE_SIZE, page*PAGE_SIZE + PAGE_SIZE);
+
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = pageData.map(r => {
+    const p = priceOf(r);
+    const lineTotal = p * r.q;
+    return `<tr data-i="${r.i}">
+      <td><input type="checkbox" class="selchk" data-i="${r.i}" ${selected.has(r.i)?'checked':''}></td>
+      <td><a class="codelink" target="_blank" rel="noopener" href="${googleImgUrl(r)}">${r.code}</a></td>
+      <td>${r.d}</td>
+      <td>${r.b}</td>
+      <td><span class="bktag">${BK_LABEL[r.bk]||r.bk}</span></td>
+      <td class="numc">${fmt(r.q)}</td>
+      <td class="numc">${fmt(r.u)}</td>
+      <td>${r.cf ? `<span class="conftag ${CONF_CLASS[r.cf]||''}">${r.cf}</span>` : '<span class="conftag pending">قيد البحث</span>'}</td>
+      <td><input type="number" class="pricein" data-i="${r.i}" value="${p}" step="0.01"></td>
+      <td class="numc">${fmt(lineTotal)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('pageInfo').textContent = `${page+1} / ${totalPages}`;
+  document.getElementById('statCount').textContent = fmt(data.length);
+
+  const origTotal = data.reduce((s,r)=>s + r.u*r.q, 0);
+  const editedTotal = data.reduce((s,r)=>s + priceOf(r)*r.q, 0);
+  const reservePct = parseFloat(document.getElementById('reservePct').value) || 0;
+  const reserveAmt = editedTotal * reservePct/100;
+  const net = editedTotal - reserveAmt;
+
+  document.getElementById('statOrigTotal').textContent = fmt(origTotal);
+  document.getElementById('statEditedTotal').textContent = fmt(editedTotal);
+  document.getElementById('statReserveAmt').textContent = fmt(reserveAmt);
+  document.getElementById('statNet').textContent = fmt(net);
+  document.getElementById('statSelected').textContent = fmt(selected.size);
+  document.getElementById('selCount').textContent = selected.size;
+
+  const gaugeMax = 4200000;
+  document.getElementById('gaugeFill').style.width = Math.min(100, net/gaugeMax*100) + '%';
+  document.getElementById('gaugeBand').style.left = (1400000/gaugeMax*100) + '%';
+  document.getElementById('gaugeBand').style.width = ((1500000-1400000)/gaugeMax*100) + '%';
+}
+
+document.getElementById('tbody').addEventListener('input', e => {
+  if (e.target.classList.contains('pricein')) {
+    const i = parseInt(e.target.dataset.i);
+    const v = parseFloat(e.target.value);
+    edited[i] = isNaN(v) ? 0 : v;
+    render();
+  }
+});
+document.getElementById('tbody').addEventListener('change', e => {
+  if (e.target.classList.contains('selchk')) {
+    const i = parseInt(e.target.dataset.i);
+    if (e.target.checked) selected.add(i); else selected.delete(i);
+    render();
+  }
+});
+
+document.getElementById('search').addEventListener('input', e => { searchTerm = e.target.value; page = 0; render(); });
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    filterBk = chip.dataset.bk; page = 0; render();
+  });
+});
+document.getElementById('reservePct').addEventListener('input', render);
+document.getElementById('prevPage').addEventListener('click', () => { if (page>0){page--; render();} });
+document.getElementById('nextPage').addEventListener('click', () => { page++; render(); });
+document.getElementById('btnReset').addEventListener('click', () => { edited = {}; render(); });
+
+document.getElementById('btnCalibrate').addEventListener('click', () => {
+  const data = filteredData();
+  const reservePct = parseFloat(document.getElementById('reservePct').value) || 0;
+  const currentEditedTotal = data.reduce((s,r)=>s + priceOf(r)*r.q, 0);
+  const currentNet = currentEditedTotal * (1 - reservePct/100);
+  if (currentNet <= 0) return;
+  const targetNet = 1450000;
+  const factor = targetNet / currentNet;
+  data.forEach(r => { edited[r.i] = Math.round(priceOf(r) * factor * 100)/100; });
+  render();
+});
+
+document.getElementById('btnQuote').addEventListener('click', () => {
+  const items = DATA.filter(r => selected.has(r.i));
+  const body = document.getElementById('quoteBody');
+  if (items.length === 0) {
+    body.innerHTML = '<p>لم يتم تحديد أي أصناف. ضع علامة على الأصناف المطلوبة من الجدول أولًا.</p>';
+  } else {
+    const total = items.reduce((s,r)=>s + priceOf(r)*r.q, 0);
+    body.innerHTML = `
+      <table>
+        <thead><tr><th>الكود</th><th>الوصف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead>
+        <tbody>${items.map(r=>{
+          const p = priceOf(r);
+          return `<tr><td>${r.code}</td><td>${r.d}</td><td class="numc">${fmt(r.q)}</td><td class="numc">${fmt(p)}</td><td class="numc">${fmt(p*r.q)}</td></tr>`;
+        }).join('')}</tbody>
+        <tfoot><tr><td colspan="4" style="text-align:left;font-weight:700;">الإجمالي</td><td class="numc" style="font-weight:700;">${fmt(total)}</td></tr></tfoot>
+      </table>`;
+  }
+  document.getElementById('quoteModal').classList.add('open');
+});
+document.getElementById('btnCloseQuote').addEventListener('click', () => document.getElementById('quoteModal').classList.remove('open'));
+document.getElementById('btnPrint').addEventListener('click', () => window.print());
+
+render();
+</script>

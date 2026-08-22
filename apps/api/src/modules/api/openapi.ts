@@ -131,6 +131,15 @@ export const OPERATIONS: Record<string, Partial<Record<"get" | "post" | "patch" 
     post: { summary: "Status machine move — 'published' refused here; approval is its own permission (§7)", tag: "content", params: ["id"], body: { to: "draft|in_review|approved|rejected|scheduled|failed", scheduledAt: "ISO date for scheduled" } },
   },
   "/content/{id}/publish": { post: { summary: "Publish now — only from approved/scheduled (§7)", tag: "content", params: ["id"] } },
+  "/platform/tenants": {
+    get: { summary: "All tenants with plan/status/usage — alta_admin only, cross-tenant by design (§13)", tag: "platform" },
+  },
+  "/platform/hotels": {
+    post: { summary: "§13 onboarding in one call: property + auto-tenant + plan/quota + hotel_manager login", tag: "platform", body: { propertyId: "slug", name: "string", plan: "trial|basic|pro|enterprise", quotaGb: "number", managerName: "string", managerUsername: "string", managerPassword: "min 10 chars, write-only" } },
+  },
+  "/platform/tenants/{id}": {
+    patch: { summary: "Set plan/quota, suspend or reactivate — suspension cuts the hotel's staff API access", tag: "platform", params: ["id"], body: { plan: "optional", quotaGb: "optional", status: "active|suspended" } },
+  },
   "/audit": { get: { summary: "Tamper-evident audit trail (SHA-256 hash chain)", tag: "audit", query: ["limit", "action"] } },
   "/audit/verify": { get: { summary: "Walk the hash chain; reports first broken seq if any", tag: "audit" } },
   "/credentials": {
@@ -177,7 +186,7 @@ export function buildOpenApiSpec(): Record<string, unknown> {
       { name: "auth" }, { name: "core" }, { name: "events" }, { name: "agents" },
       { name: "knowledge" }, { name: "tickets" }, { name: "reviews" }, { name: "guests" },
       { name: "inbox" }, { name: "workorders" }, { name: "storage" }, { name: "reputation" },
-      { name: "content" }, { name: "audit" }, { name: "credentials" },
+      { name: "content" }, { name: "audit" }, { name: "credentials" }, { name: "platform" },
     ],
     paths,
   };

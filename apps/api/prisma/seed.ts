@@ -44,6 +44,26 @@ async function main() {
     },
   });
 
+    // §13: the platform operator's own home. alta_admin is cross-tenant by
+  // role but StaffMember needs a propertyId — a dedicated platform
+  // property keeps it out of any hotel's staff list.
+  await prisma.property.upsert({
+    where: { id: "alta-platform" },
+    update: {},
+    create: { id: "alta-platform", name: "ALTA Platform" },
+  });
+  await prisma.staffMember.upsert({
+    where: { username: "alta" },
+    update: {},
+    create: {
+      propertyId: "alta-platform",
+      name: "ALTA Admin",
+      role: "alta_admin",
+      username: "alta",
+      passwordHash: DEMO_PASSWORD_HASH,
+    },
+  });
+
   const staffRoles: Array<{ name: string; role: string; username: string }> = [
     { name: "Fahad (Reception)", role: "reception", username: "fahad" },
     { name: "Noura (Housekeeping)", role: "housekeeping", username: "noura" },

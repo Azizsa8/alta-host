@@ -267,7 +267,33 @@ export const api = {
     request<ContentItemRow>(`/content/${id}/transition`, { method: "POST", body: JSON.stringify({ to, scheduledAt }) }),
   publishContent: (id: string) =>
     request<{ published: boolean; resultUrl: string }>(`/content/${id}/publish`, { method: "POST" }),
+  platformTenants: () => request<PlatformTenant[]>("/platform/tenants"),
+  createHotel: (p: {
+    propertyId: string;
+    name: string;
+    plan: string;
+    quotaGb: number;
+    managerName: string;
+    managerUsername: string;
+    managerPassword: string;
+  }) => request<{ ok: boolean; propertyId: string }>("/platform/hotels", { method: "POST", body: JSON.stringify(p) }),
+  updateTenant: (id: string, p: { plan?: string; quotaGb?: number; status?: "active" | "suspended" }) =>
+    request<{ updated: boolean }>(`/platform/tenants/${id}`, { method: "PATCH", body: JSON.stringify(p) }),
 };
+
+export interface PlatformTenant {
+  id: string;
+  name: string;
+  plan: string;
+  status: "active" | "suspended";
+  quotaGb: number;
+  usedBytes: string;
+  usedPct: number;
+  properties: string[];
+  staffCount: number;
+  guestCount: number;
+  createdAt: string;
+}
 
 export interface BrandProfile {
   identity: string;

@@ -30,6 +30,27 @@ services:
       timeout: 3s
       retries: 10
 
+  # S3-compatible object storage (§5): fault photos, content media, policy
+  # docs. Self-hosted MinIO keeps files in-region alongside the rest of
+  # the data. Files are NEVER public — access is via short-lived signed
+  # URLs only.
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-alta-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-alta-minio-devsecret}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+    volumes:
+      - alta-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   api:
     build:
       context: .
@@ -71,6 +92,13 @@ services:
       # unset. Set a real random value for anything beyond local dev.
       JWT_SECRET: ${JWT_SECRET:-}
       CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-alta-minio}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-alta-minio-devsecret}
+      S3_BUCKET: ${S3_BUCKET:-alta-files}
+      # Signed download/upload URLs are minted against this origin — must
+      # be reachable by the BROWSER, not just by containers.
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
       AUTO_APPROVE_INTENTS: ${AUTO_APPROVE_INTENTS:-}
     expose:
       - "4317"
@@ -112,3 +140,4 @@ services:
 volumes:
   alta-db-data:
   alta-redis-data:
+  alta-minio-data:

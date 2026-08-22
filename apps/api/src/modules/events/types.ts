@@ -15,7 +15,8 @@ export type AltaEventBody =
   | { type: "review.queued"; reviewItemId: string; department: string; intentId: string }
   | { type: "review.decided"; reviewItemId: string; decision: "approved" | "rejected"; reviewedBy: string }
   | { type: "ticket.created"; ticketId: string; department: string; urgency: string; summary: string }
-  | { type: "ticket.escalated"; ticketId: string; department: string };
+  | { type: "ticket.escalated"; ticketId: string; department: string }
+  | { type: "storage.alert"; usedPct: number; quotaGb: number };
 
 export type AltaEventType = AltaEventBody["type"];
 

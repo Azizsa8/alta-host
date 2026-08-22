@@ -9,6 +9,7 @@ import { applyPendingEscalations } from "../tickets/ticketService.js";
 import { requireAuth } from "../auth/middleware.js";
 import { AGENT_REGISTRY } from "../agents/registry.js";
 import { can } from "../auth/permissions.js";
+import { quotaFor, requestUpload, confirmUpload, signedDownloadUrl, trashFile, restoreFile, FILE_KINDS } from "../storage/service.js";
 import { recordAudit, auditContextFrom, verifyAuditChain } from "../audit/service.js";
 import { emitEvent } from "../events/bus.js";
 import { sendWhatsAppMessage } from "../whatsapp/gateway.js";
@@ -238,6 +239,113 @@ apiRouter.get(
   })
 );
 
+
+
+// ---- storage (§5 / §11-8) ---------------------------------------------
+
+apiRouter.get(
+  "/storage/quota",
+  asyncRoute(async (req, res) => {
+    const q = await quotaFor(req.staff!.propertyId);
+    res.json({ quotaGb: q.quotaGb, usedBytes: q.usedBytes.toString(), usedPct: q.usedPct });
+  })
+);
+
+const UploadRequest = z.object({
+  kind: z.enum(FILE_KINDS),
+  name: z.string().min(1).max(120),
+  mime: z.string().min(3),
+  sizeBytes: z.number().int().positive(),
+});
+
+// Two-step upload: this mints a short-lived presigned PUT after quota is
+// reserved transactionally; the browser uploads straight to object
+// storage (bytes never pass through the API), then confirms.
+apiRouter.post(
+  "/storage/uploads",
+  asyncRoute(async (req, res) => {
+    const payload = UploadRequest.parse(req.body);
+    const result = await requestUpload({
+      propertyId: req.staff!.propertyId,
+      ownerId: req.staff!.staffId,
+      ...payload,
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.status(201).json(result);
+  })
+);
+
+apiRouter.post(
+  "/storage/uploads/:id/confirm",
+  asyncRoute(async (req, res) => {
+    const { id } = IdParam.parse(req.params);
+    const ok = await confirmUpload(req.staff!.propertyId, id);
+    res.status(ok ? 200 : 404).json({ confirmed: ok });
+  })
+);
+
+apiRouter.get(
+  "/storage/files",
+  asyncRoute(async (req, res) => {
+    const status = req.query.status === "trashed" ? "trashed" : "active";
+    const files = await prisma.storageFile.findMany({
+      where: { propertyId: req.staff!.propertyId, status },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    });
+    res.json(
+      files.map((f) => ({
+        id: f.id,
+        kind: f.kind,
+        name: f.name,
+        mime: f.mime,
+        sizeBytes: f.sizeBytes.toString(),
+        status: f.status,
+        createdAt: f.createdAt.toISOString(),
+      }))
+    );
+  })
+);
+
+// The only read path: a short-lived signed URL. Files are never public.
+apiRouter.get(
+  "/storage/files/:id/url",
+  asyncRoute(async (req, res) => {
+    const { id } = IdParam.parse(req.params);
+    const url = await signedDownloadUrl(req.staff!.propertyId, id);
+    if (!url) {
+      res.status(404).json({ error: "file not found" });
+      return;
+    }
+    res.json({ url });
+  })
+);
+
+apiRouter.delete(
+  "/storage/files/:id",
+  asyncRoute(async (req, res) => {
+    const { id } = IdParam.parse(req.params);
+    const ok = await trashFile({
+      propertyId: req.staff!.propertyId,
+      fileId: id,
+      actorName: req.staff!.name,
+      actorId: req.staff!.staffId,
+    });
+    res.status(ok ? 204 : 404).end();
+  })
+);
+
+apiRouter.post(
+  "/storage/files/:id/restore",
+  asyncRoute(async (req, res) => {
+    const { id } = IdParam.parse(req.params);
+    const ok = await restoreFile(req.staff!.propertyId, id);
+    res.status(ok ? 200 : 404).json({ restored: ok });
+  })
+);
 
 // ---- conversations / inbox (§4 صندوق رسائل النزلاء, §6-ب) --------------
 

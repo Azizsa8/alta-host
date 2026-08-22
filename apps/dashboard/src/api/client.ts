@@ -101,8 +101,22 @@ export interface ReviewItem {
   };
 }
 
+export interface ReportKpis {
+  windowDays: number;
+  medianResponseSeconds: number | null;
+  respondedCount: number;
+  autoResolutionPct: number | null;
+  totalRuns: number;
+  positiveSentimentPct: number | null;
+  googleStarsAvg: number | null;
+  googleReviewCount: number;
+  slaCompliancePct: number | null;
+  takeovers: number;
+}
+
 export interface DailyReport {
   propertyId: string;
+  kpis: ReportKpis;
   totalTickets: number;
   ticketsByDepartment: Record<string, number>;
   sentimentBreakdown: Record<string, number>;

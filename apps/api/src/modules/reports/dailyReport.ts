@@ -14,6 +14,103 @@ const RECOMMENDATION_KEYWORDS: Array<{ label: string; pattern: RegExp; threshold
  * the PRD's own worked example ("AC complaints up 15% — recommend
  * inspection") rather than just surfacing a raw count.
  */
+/**
+ * The pilot's weekly KPIs (pilot checklist: زمن الاستجابة، نسبة الحل
+ * الآلي، رضا النزلاء) computed from what actually happened — message
+ * timestamps, agent-run outcomes, sentiment, review stars — over the
+ * last 7 days. No self-reported numbers.
+ */
+async function computeKpis(propertyId: string) {
+  const since = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+
+  // First-response time: for each inbound message, the delta to the next
+  // outbound in the same conversation. Median beats mean here — one
+  // overnight conversation would otherwise swamp a week of fast replies.
+  const messages = await prisma.message.findMany({
+    where: { conversation: { guest: { propertyId } }, createdAt: { gte: since } },
+    orderBy: { createdAt: "asc" },
+    select: { conversationId: true, direction: true, createdAt: true },
+  });
+  const byConv = new Map<string, typeof messages>();
+  for (const m of messages) {
+    const list = byConv.get(m.conversationId) ?? [];
+    list.push(m);
+    byConv.set(m.conversationId, list);
+  }
+  const responseSeconds: number[] = [];
+  for (const list of byConv.values()) {
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].direction !== "inbound") continue;
+      const reply = list.slice(i + 1).find((m) => m.direction === "outbound");
+      if (reply) responseSeconds.push((reply.createdAt.getTime() - list[i].createdAt.getTime()) / 1000);
+    }
+  }
+  responseSeconds.sort((a, b) => a - b);
+  const medianResponseSeconds =
+    responseSeconds.length > 0 ? Math.round(responseSeconds[Math.floor(responseSeconds.length / 2)]) : null;
+
+  // Auto-resolution: agent runs that completed without needing a human
+  // (enabled / auto_approved) as a share of all runs. disabled_skipped and
+  // queued_for_review both count as human-handled — honestly.
+  const runs = await prisma.agentRun.groupBy({
+    by: ["policyApplied"],
+    where: { propertyId, createdAt: { gte: since } },
+    _count: true,
+  });
+  const runCount = (k: string) => runs.find((r) => r.policyApplied === k)?._count ?? 0;
+  const autoRuns = runCount("enabled") + runCount("auto_approved");
+  const totalRuns = runs.reduce((a, r) => a + r._count, 0);
+  const autoResolutionPct = totalRuns > 0 ? Math.round((autoRuns / totalRuns) * 100) : null;
+
+  // Satisfaction: message sentiment share + the public stars average.
+  const sentiments = await prisma.intent.groupBy({
+    by: ["sentiment"],
+    where: { message: { conversation: { guest: { propertyId } } }, createdAt: { gte: since } },
+    _count: true,
+  });
+  const sCount = (k: string) => sentiments.find((r) => r.sentiment === k)?._count ?? 0;
+  const sTotal = sentiments.reduce((a, r) => a + r._count, 0);
+  const positiveSentimentPct = sTotal > 0 ? Math.round((sCount("positive") / sTotal) * 100) : null;
+
+  const reviews = await prisma.googleReview.aggregate({
+    where: { propertyId },
+    _avg: { stars: true },
+    _count: true,
+  });
+
+  // SLA compliance: tickets that never breached their deadline.
+  const [totalTickets, breached] = await Promise.all([
+    prisma.ticket.count({
+      where: { intent: { message: { conversation: { guest: { propertyId } } } }, createdAt: { gte: since } },
+    }),
+    prisma.ticket.count({
+      where: {
+        intent: { message: { conversation: { guest: { propertyId } } } },
+        createdAt: { gte: since },
+        escalatedAt: { not: null },
+      },
+    }),
+  ]);
+  const slaCompliancePct = totalTickets > 0 ? Math.round(((totalTickets - breached) / totalTickets) * 100) : null;
+
+  const takeovers = await prisma.conversation.count({
+    where: { guest: { propertyId }, takenOverAt: { gte: since } },
+  });
+
+  return {
+    windowDays: 7,
+    medianResponseSeconds,
+    respondedCount: responseSeconds.length,
+    autoResolutionPct,
+    totalRuns,
+    positiveSentimentPct,
+    googleStarsAvg: reviews._count > 0 ? Math.round((reviews._avg.stars ?? 0) * 10) / 10 : null,
+    googleReviewCount: reviews._count,
+    slaCompliancePct,
+    takeovers,
+  };
+}
+
 export async function generateDailyReport(propertyId: string) {
   await applyPendingEscalations();
 
@@ -62,8 +159,11 @@ export async function generateDailyReport(propertyId: string) {
     recommendations.push(`${escalatedCount} open ticket(s) have breached their SLA deadline — check the Ticket Board for what's stuck.`);
   }
 
+  const kpis = await computeKpis(propertyId);
+
   return {
     propertyId,
+    kpis,
     totalTickets: tickets.length,
     ticketsByDepartment,
     sentimentBreakdown,

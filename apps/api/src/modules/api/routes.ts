@@ -189,6 +189,12 @@ apiRouter.get(
 apiRouter.get(
   "/credentials",
   asyncRoute(async (req, res) => {
+    // Even the metadata (which keys exist, when rotated) is manager-only
+    // (§8) — knowing WHICH integrations a hotel runs is reconnaissance.
+    if (!can(req.staff!.role, "credentials.manage")) {
+      res.status(403).json({ error: "only the hotel manager can manage credentials" });
+      return;
+    }
     res.json(await listCredentials(req.staff!.propertyId));
   })
 );

@@ -206,7 +206,9 @@ async function dispatch(
   const startedAt = Date.now();
   const outcome = await dispatchInner(intent, ctx, urgency);
 
-  await recordAgentRun({
+  // Fire-and-forget: recordAgentRun never throws, and awaiting it would
+  // serialize an audit insert into every guest-facing reply.
+  void recordAgentRun({
     propertyId: ctx.propertyId,
     agentKey,
     intentId: ctx.intentId,

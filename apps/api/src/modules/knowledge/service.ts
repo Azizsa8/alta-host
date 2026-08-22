@@ -33,12 +33,25 @@ export async function findApprovedAnswer(
 }
 
 /** The agent centre's on/off switch. No row = enabled — the pipeline must
- *  keep working for hotels that never opened the agent centre. */
+ *  keep working for hotels that never opened the agent centre.
+ *
+ *  Cached 10s: the read sits on the hot path of every dispatched intent,
+ *  and a per-message DB roundtrip measurably cut ingest throughput.
+ *  setAgentEnabled busts the cache, so in-process toggles bite instantly;
+ *  a toggle from ANOTHER api instance bites within 10s — acceptable for
+ *  §4's "يتوقف" and stated here so nobody discovers it in an incident. */
+const policyCache = new Map<string, { enabled: boolean; at: number }>();
+
 export async function isAgentEnabled(propertyId: string, agentKey: string): Promise<boolean> {
+  const cacheKey = `${propertyId}:${agentKey}`;
+  const hit = policyCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < 10_000) return hit.enabled;
   const policy = await prisma.agentPolicy.findUnique({
     where: { propertyId_agentKey: { propertyId, agentKey } },
   });
-  return policy?.enabled ?? true;
+  const enabled = policy?.enabled ?? true;
+  policyCache.set(cacheKey, { enabled, at: Date.now() });
+  return enabled;
 }
 
 export async function setAgentEnabled(params: {
@@ -47,6 +60,7 @@ export async function setAgentEnabled(params: {
   enabled: boolean;
   updatedBy: string;
 }) {
+  policyCache.delete(`${params.propertyId}:${params.agentKey}`);
   return prisma.agentPolicy.upsert({
     where: { propertyId_agentKey: { propertyId: params.propertyId, agentKey: params.agentKey } },
     create: {

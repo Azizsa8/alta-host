@@ -30,6 +30,13 @@ export const ACTIONS = [
   "reports.view",
   "agents.view",
   "simulate.run",
+  "workorders.view_all", // the maintenance board
+  "workorders.view_own", // technician: only their assignments (§4)
+  "workorders.create",
+  "workorders.assign",
+  "workorders.update_status", // progress notes + photos
+  "workorders.close", // normal-priority close
+  "workorders.close_critical", // §6-ج: manager confirm gates critical closes
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -53,6 +60,13 @@ const POLICY: Record<Action, Role[]> = {
   "reports.view": [...MANAGERS, "marketing_manager"],
   "agents.view": [...FRONT_OF_HOUSE, "maintenance_manager", "marketing_manager"],
   "simulate.run": FRONT_OF_HOUSE,
+  "workorders.view_all": [...MANAGERS, "maintenance_manager", "reception"],
+  "workorders.view_own": ["technician"],
+  "workorders.create": [...FRONT_OF_HOUSE, "maintenance_manager"],
+  "workorders.assign": [...MANAGERS, "maintenance_manager"],
+  "workorders.update_status": [...MANAGERS, "maintenance_manager", "technician"],
+  "workorders.close": [...MANAGERS, "maintenance_manager", "technician"],
+  "workorders.close_critical": [...MANAGERS, "maintenance_manager"],
 };
 
 export function can(role: string, action: Action): boolean {

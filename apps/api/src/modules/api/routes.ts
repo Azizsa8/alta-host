@@ -10,6 +10,15 @@ import { requireAuth } from "../auth/middleware.js";
 import { AGENT_REGISTRY } from "../agents/registry.js";
 import { can } from "../auth/permissions.js";
 import { quotaFor, requestUpload, confirmUpload, signedDownloadUrl, trashFile, restoreFile, FILE_KINDS } from "../storage/service.js";
+import {
+  createWorkOrder,
+  ownWorkOrder,
+  assignWorkOrder,
+  addUpdate as addWorkOrderUpdate,
+  closeWorkOrder,
+  WO_CATEGORIES,
+  WO_PRIORITIES,
+} from "../workorders/service.js";
 import { recordAudit, auditContextFrom, verifyAuditChain } from "../audit/service.js";
 import { emitEvent } from "../events/bus.js";
 import { sendWhatsAppMessage } from "../whatsapp/gateway.js";
@@ -344,6 +353,180 @@ apiRouter.post(
     const { id } = IdParam.parse(req.params);
     const ok = await restoreFile(req.staff!.propertyId, id);
     res.status(ok ? 200 : 404).json({ restored: ok });
+  })
+);
+
+// ---- work orders (§6-ج / §11-5) ---------------------------------------
+
+function woActor(req: Request) {
+  return {
+    staffId: req.staff!.staffId,
+    name: req.staff!.name,
+    role: req.staff!.role,
+    propertyId: req.staff!.propertyId,
+  };
+}
+
+// Technicians get ONLY their own assignments (§4); board roles see all.
+apiRouter.get(
+  "/workorders",
+  asyncRoute(async (req, res) => {
+    const role = req.staff!.role;
+    let where: Record<string, unknown>;
+    if (can(role, "workorders.view_all")) {
+      where = { propertyId: req.staff!.propertyId };
+    } else if (can(role, "workorders.view_own")) {
+      where = { propertyId: req.staff!.propertyId, assigneeId: req.staff!.staffId };
+    } else {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const status = typeof req.query.status === "string" ? req.query.status : undefined;
+    if (status) where.status = status;
+    const orders = await prisma.workOrder.findMany({
+      where,
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      take: 200,
+      include: { updates: { orderBy: { createdAt: "asc" } } },
+    });
+    const staffIds = [...new Set(orders.flatMap((w) => [w.assigneeId, w.createdBy]).filter(Boolean))] as string[];
+    const staff = await prisma.staffMember.findMany({ where: { id: { in: staffIds } } });
+    const names = Object.fromEntries(staff.map((s) => [s.id, s.name]));
+    res.json(
+      orders.map((w) => ({
+        ...w,
+        assigneeName: w.assigneeId ? (names[w.assigneeId] ?? null) : null,
+        createdByName: names[w.createdBy] ?? null,
+      }))
+    );
+  })
+);
+
+const CreateWorkOrder = z.object({
+  title: z.string().min(2).max(200),
+  category: z.enum(WO_CATEGORIES),
+  priority: z.enum(WO_PRIORITIES),
+  location: z.string().min(1).max(120),
+  ticketId: z.string().uuid().optional(),
+  assigneeId: z.string().uuid().optional(),
+  checklist: z.array(z.object({ item: z.string().min(1), done: z.boolean() })).max(30).optional(),
+});
+
+apiRouter.post(
+  "/workorders",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "workorders.create")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const payload = CreateWorkOrder.parse(req.body);
+    const wo = await createWorkOrder({ actor: woActor(req), ...payload });
+    res.status(201).json(wo);
+  })
+);
+
+apiRouter.get(
+  "/workorders/:id",
+  asyncRoute(async (req, res) => {
+    const { id } = IdParam.parse(req.params);
+    const wo = await ownWorkOrder(req.staff!.propertyId, id);
+    if (!wo) {
+      res.status(404).json({ error: "work order not found" });
+      return;
+    }
+    if (can(req.staff!.role, "workorders.view_own") && wo.assigneeId !== req.staff!.staffId) {
+      res.status(403).json({ error: "not your work order" });
+      return;
+    }
+    res.json(wo);
+  })
+);
+
+apiRouter.post(
+  "/workorders/:id/assign",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "workorders.assign")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const { id } = IdParam.parse(req.params);
+    const { assigneeId } = z.object({ assigneeId: z.string().uuid() }).parse(req.body);
+    const assignee = await prisma.staffMember.findFirst({
+      where: { id: assigneeId, propertyId: req.staff!.propertyId },
+    });
+    if (!assignee) {
+      res.status(422).json({ error: "assignee not in this property" });
+      return;
+    }
+    const wo = await assignWorkOrder({ actor: woActor(req), workOrderId: id, assigneeId });
+    if (!wo) {
+      res.status(404).json({ error: "work order not found or closed" });
+      return;
+    }
+    res.json(wo);
+  })
+);
+
+const WoUpdate = z.object({
+  note: z.string().min(1).max(2000),
+  photoFileIds: z.array(z.string().uuid()).max(10).optional(),
+  statusTo: z.enum(["assigned", "in_progress", "awaiting_confirm", "new"]).optional(),
+});
+
+apiRouter.post(
+  "/workorders/:id/updates",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "workorders.update_status")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const { id } = IdParam.parse(req.params);
+    const payload = WoUpdate.parse(req.body);
+    const result = await addWorkOrderUpdate({ actor: woActor(req), workOrderId: id, ...payload });
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.status(201).json(result.update);
+  })
+);
+
+// Closing is its own call, not a status update — the §6-ج critical gate
+// lives in the service and cannot be reached through /updates.
+apiRouter.post(
+  "/workorders/:id/close",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "workorders.close")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const { id } = IdParam.parse(req.params);
+    const note = typeof req.body?.note === "string" ? req.body.note : undefined;
+    const result = await closeWorkOrder({
+      actor: woActor(req),
+      workOrderId: id,
+      canCloseCritical: can(req.staff!.role, "workorders.close_critical"),
+      note,
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.json({ closed: true });
+  })
+);
+
+// Assign dropdown data: own-property staff only, names and roles — no
+// contact details or credentials.
+apiRouter.get(
+  "/staff",
+  asyncRoute(async (req, res) => {
+    const staff = await prisma.staffMember.findMany({
+      where: { propertyId: req.staff!.propertyId },
+      select: { id: true, name: true, role: true },
+      orderBy: { name: "asc" },
+    });
+    res.json(staff);
   })
 );
 

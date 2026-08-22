@@ -341,3 +341,61 @@ model WorkOrderUpdate {
   @@index([workOrderId])
   @@index([tenantId])
 }
+
+// §6-أ / §7: agents answer ONLY from approved knowledge. Draft and retired
+// items are invisible to the pipeline by construction (status filter in
+// the one query that feeds agents).
+model KnowledgeItem {
+  id         String   @id @default(uuid())
+  tenantId   String   @default("") // derived by DB trigger
+  propertyId String
+  title      String
+  contentAr  String
+  contentEn  String   @default("")
+  tags       Json     @default("[]") // matching keywords, ar + en
+  status     String   @default("draft") // draft | approved | retired
+  approvedBy String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([propertyId, status])
+  @@index([tenantId])
+}
+
+// §4 مركز الوكلاء: the per-hotel on/off switch and config for each agent.
+// No row means enabled with defaults — the pipeline must keep working for
+// hotels that never opened the agent centre.
+model AgentPolicy {
+  id         String   @id @default(uuid())
+  tenantId   String   @default("") // derived by DB trigger
+  propertyId String
+  agentKey   String
+  enabled    Boolean  @default(true)
+  config     Json     @default("{}")
+  updatedBy  String?
+  updatedAt  DateTime @updatedAt
+
+  @@unique([propertyId, agentKey])
+  @@index([tenantId])
+}
+
+// §9: every agent invocation captured — inputs, outputs, tools touched,
+// which policy applied, and how long it took. The run log behind the
+// agent centre.
+model AgentRun {
+  id            String   @id @default(uuid())
+  tenantId      String   @default("") // derived by DB trigger
+  propertyId    String
+  agentKey      String
+  intentId      String?
+  intentType    String
+  inputs        Json     @default("{}")
+  outputs       Json     @default("{}")
+  tools         Json     @default("[]")
+  policyApplied String   @default("enabled") // enabled | disabled_skipped | auto_approved | queued_for_review
+  durationMs    Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@index([propertyId, agentKey, createdAt])
+  @@index([tenantId])
+}

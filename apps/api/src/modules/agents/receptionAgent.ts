@@ -3,6 +3,7 @@ import { createTicket, logAgentAction } from "../tickets/ticketService.js";
 import type { ExtractedIntent, Urgency } from "../nlu/types.js";
 import type { PendingAction } from "../reviews/reviewService.js";
 import { runSubAgent } from "./subAgent.js";
+import { findApprovedAnswer } from "../knowledge/service.js";
 import { prisma } from "../../db.js";
 
 export interface AgentReply {
@@ -84,18 +85,28 @@ export async function proposeReceptionReply(
   if (intent.type === "reception.faq") {
     const question = String(intent.params.question ?? "");
     const lang = await resolveGuestLanguage(ctx.guestId, question);
-    const q = question.toLowerCase();
-    const answer = /wifi|واي فاي/.test(q)
+
+    // §6-أ: answer ONLY from approved knowledge. The sub-agent report makes
+    // "which item answered this?" visible in the ops centre; a miss is an
+    // honest "a person will follow up", never an invented policy (§7).
+    const match = await runSubAgent(
+      { propertyId: ctx.propertyId, intentId: ctx.intentId },
+      "reception.knowledge_lookup",
+      "reception",
+      () => findApprovedAnswer(ctx.propertyId, question),
+      (found) =>
+        found
+          ? { outcome: "ok" as const, detail: `matched "${found.title}"` }
+          : { outcome: "blocked" as const, detail: "no approved knowledge item" }
+    );
+
+    const answer = match
       ? lang === "ar"
-        ? "شبكة الواي فاي اسمها ALTA-Guest، وكلمة المرور تلقاها على كرت غرفتك."
-        : "The Wi-Fi network is ALTA-Guest, password is on your room key card."
-      : /breakfast|فطور/.test(q)
-        ? lang === "ar"
-          ? "الفطور من الساعة ٦:٣٠ إلى ١٠:٣٠ الصباح في المطعم الرئيسي."
-          : "Breakfast is served 6:30–10:30 AM in the main restaurant."
-        : lang === "ar"
-          ? "يعطيك العافية على تواصلك، أحد الفريق يتأكد من طلبك ويردّ عليك بأقرب وقت."
-          : "Thanks for reaching out — a team member will confirm shortly.";
+        ? match.contentAr
+        : match.contentEn || match.contentAr
+      : lang === "ar"
+        ? "يعطيك العافية على تواصلك، أحد الفريق يتأكد من طلبك ويردّ عليك بأقرب وقت."
+        : "Thanks for reaching out — a team member will confirm shortly.";
     return { draftReply: answer, pendingAction: { type: "no_action", params: {} } };
   }
 

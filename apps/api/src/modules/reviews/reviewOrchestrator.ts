@@ -1,6 +1,7 @@
 import { createPMSAdapter } from "../pms/mockAdapter.js";
 import { executeReceptionAction } from "../agents/receptionAgent.js";
 import { executeGuestServiceAction } from "../agents/guestServiceAgent.js";
+import { assertActionAllowed } from "../agents/guards.js";
 import { sendWhatsAppMessage } from "../whatsapp/gateway.js";
 import { getReviewItem, markReviewed, type PendingAction } from "./reviewService.js";
 import { prisma } from "../../db.js";
@@ -44,8 +45,10 @@ export async function approveReview(id: string, editedReply?: string, reviewedBy
   const execCtx = { intentId: item.intentId, propertyId };
 
   if (item.department === "reception") {
+    assertActionAllowed("reception", pendingAction, "review_approved");
     await executeReceptionAction(pendingAction, { ...execCtx, urgency }, pms);
   } else if (item.department === "guest_service") {
+    assertActionAllowed("guest_service", pendingAction, "review_approved");
     await executeGuestServiceAction(pendingAction, execCtx);
   }
 

@@ -8,11 +8,13 @@ import { Guests } from "./pages/Guests.js";
 import { ReviewQueue } from "./pages/ReviewQueue.js";
 import { ExecutiveReport } from "./pages/ExecutiveReport.js";
 import { AuditTrail } from "./pages/AuditTrail.js";
+import { Inbox } from "./pages/Inbox.js";
 
-type View = "ops" | "simulator" | "reviews" | "tickets" | "guests" | "report" | "audit";
+type View = "ops" | "inbox" | "simulator" | "reviews" | "tickets" | "guests" | "report" | "audit";
 
 const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
   { key: "ops", label: "مركز العمليات", icon: "hub" },
+  { key: "inbox", label: "صندوق الرسائل", icon: "forum" },
   { key: "simulator", label: "المحاكي", icon: "chat" },
   { key: "reviews", label: "قائمة المراجعة", icon: "fact_check" },
   { key: "tickets", label: "لوحة التذاكر", icon: "confirmation_number" },
@@ -23,6 +25,7 @@ const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
 
 const VIEW_TITLES: Record<View, string> = {
   ops: "مركز العمليات",
+  inbox: "صندوق الرسائل",
   simulator: "المحاكي",
   reviews: "قائمة المراجعة",
   tickets: "لوحة التذاكر",
@@ -220,6 +223,7 @@ export default function App() {
         </nav>
         <div className="container-fluid py-4">
           {view === "ops" && <OpsCenter propertyId={staff.propertyId} />}
+          {view === "inbox" && <Inbox staff={staff} refreshKey={refreshKey} />}
           {view === "simulator" && <Simulator propertyId={staff.propertyId} onDispatched={bumpRefresh} />}
           {view === "reviews" && <ReviewQueue propertyId={staff.propertyId} refreshKey={refreshKey} onChanged={bumpRefresh} />}
           {view === "tickets" && <TicketBoard propertyId={staff.propertyId} refreshKey={refreshKey} onChanged={bumpRefresh} />}

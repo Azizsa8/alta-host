@@ -1,10 +1,15 @@
 import { Queue, Worker } from "bullmq";
 import { createRedisConnection } from "../../redis.js";
 import { logger } from "../../logger.js";
-import { processInboundMessage } from "../orchestrator/index.js";
+import { processInboundMessage, recordInboundOnly } from "../orchestrator/index.js";
+import { prisma } from "../../db.js";
 import { resolveConversation, sendWhatsAppMessage } from "../whatsapp/gateway.js";
 
-export const INGEST_QUEUE = "inbound-messages";
+// Overridable so environments sharing one Redis (dev containers vs the
+// test suite vs a future staging) each get their own queue — otherwise a
+// container's worker steals another environment's jobs and processes them
+// against the wrong database, which is exactly what happened in testing.
+export const INGEST_QUEUE = process.env.INGEST_QUEUE_NAME ?? "inbound-messages";
 
 /**
  * Deliberately carries only what the transport already knows. Resolving
@@ -54,6 +59,20 @@ export function startIngestWorker(): Worker<InboundJob> {
         whatsappId: job.data.whatsappId,
         guestName: job.data.guestName,
       });
+
+      // §6-ب: a human owns this conversation. Record the inbound message
+      // so staff see it, but run no AI pipeline and send nothing.
+      if (conversation.aiPaused) {
+        await recordInboundOnly({
+          propertyId: job.data.propertyId,
+          guestId: guest.id,
+          conversationId: conversation.id,
+          text: job.data.text,
+          mediaType: job.data.mediaType,
+        });
+        return;
+      }
+
       const result = await processInboundMessage({
         propertyId: job.data.propertyId,
         guestId: guest.id,
@@ -64,6 +83,13 @@ export function startIngestWorker(): Worker<InboundJob> {
       // Same policy as the old inline path: only immediately-dispatched
       // outcomes go out over WhatsApp — anything queued_for_review waits
       // for a staff decision (FR-6).
+      // Re-checked here because takeover can happen while this job was in
+      // flight — "stops immediately" (§11-3) includes that race.
+      const fresh = await prisma.conversation.findUnique({
+        where: { id: conversation.id },
+        select: { aiPaused: true },
+      });
+      if (fresh?.aiPaused) return;
       for (const outcome of result.outcomes) {
         if (outcome.status === "sent" && outcome.reply) {
           await sendWhatsAppMessage(conversation.id, outcome.reply);

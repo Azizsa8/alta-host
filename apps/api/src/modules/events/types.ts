@@ -10,6 +10,8 @@ export type AltaEventBody =
   // them under their parent instead of flattening the fleet.
   | { type: "subagent.started"; agentKey: string; parentKey: string; intentId: string }
   | { type: "subagent.completed"; agentKey: string; parentKey: string; intentId: string; outcome: "ok" | "blocked"; detail?: string }
+  | { type: "conversation.takenover"; conversationId: string; by: string }
+  | { type: "conversation.resumed"; conversationId: string; by: string }
   | { type: "review.queued"; reviewItemId: string; department: string; intentId: string }
   | { type: "review.decided"; reviewItemId: string; decision: "approved" | "rejected"; reviewedBy: string }
   | { type: "ticket.created"; ticketId: string; department: string; urgency: string; summary: string }

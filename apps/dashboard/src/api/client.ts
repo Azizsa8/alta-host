@@ -194,6 +194,12 @@ export const api = {
     request<ReviewItem>(`/reviews/${id}`, { method: "PATCH", body: JSON.stringify({ action: "reject" }) }),
   dailyReport: (propertyId: string) => request<DailyReport>(`/reports/daily?propertyId=${propertyId}`),
   agents: () => request<AgentDefinition[]>("/agents"),
+  conversations: () => request<ConversationSummary[]>("/conversations"),
+  conversationMessages: (id: string) => request<ChatMessage[]>(`/conversations/${id}/messages`),
+  takeover: (id: string) => request<{ aiPaused: boolean }>(`/conversations/${id}/takeover`, { method: "POST" }),
+  resumeAi: (id: string) => request<{ aiPaused: boolean }>(`/conversations/${id}/resume-ai`, { method: "POST" }),
+  manualReply: (id: string, text: string) =>
+    request<{ sent: boolean }>(`/conversations/${id}/reply`, { method: "POST", body: JSON.stringify({ text }) }),
   audit: (opts: { limit?: number; action?: string } = {}) => {
     const q = new URLSearchParams();
     if (opts.limit) q.set("limit", String(opts.limit));
@@ -241,4 +247,20 @@ export interface ChainVerification {
   checked: number;
   brokenAtSeq?: string;
   reason?: string;
+}
+
+export interface ConversationSummary {
+  id: string;
+  guest: { id: string; whatsappId: string; name: string | null };
+  aiPaused: boolean;
+  takenOverBy: string | null;
+  lastMessage: { text: string; direction: string; at: string } | null;
+}
+
+export interface ChatMessage {
+  id: string;
+  direction: "inbound" | "outbound";
+  text: string;
+  mediaType: string;
+  at: string;
 }

@@ -9,6 +9,8 @@ import { applyPendingEscalations } from "../tickets/ticketService.js";
 import { requireAuth } from "../auth/middleware.js";
 import { AGENT_REGISTRY } from "../agents/registry.js";
 import { recordAudit, auditContextFrom, verifyAuditChain } from "../audit/service.js";
+import { emitEvent } from "../events/bus.js";
+import { sendWhatsAppMessage } from "../whatsapp/gateway.js";
 import { listCredentials, setCredential, deleteCredential, CREDENTIAL_KEYS } from "../credentials/service.js";
 
 export const apiRouter = Router();
@@ -232,6 +234,136 @@ apiRouter.get(
         createdAt: row.createdAt.toISOString(),
       }))
     );
+  })
+);
+
+
+// ---- conversations / inbox (§4 صندوق رسائل النزلاء, §6-ب) --------------
+
+/** Loads a conversation and proves it belongs to the caller's property —
+ *  the same §11-1 rule as everywhere else, enforced before any action. */
+async function ownConversation(req: Request, res: Response, id: string) {
+  const conv = await prisma.conversation.findUnique({
+    where: { id },
+    include: { guest: true },
+  });
+  if (!conv || conv.guest.propertyId !== req.staff!.propertyId) {
+    res.status(conv ? 403 : 404).json({ error: conv ? "not your property" : "conversation not found" });
+    return null;
+  }
+  return conv;
+}
+
+apiRouter.get(
+  "/conversations",
+  asyncRoute(async (req, res) => {
+    const conversations = await prisma.conversation.findMany({
+      where: { guest: { propertyId: req.staff!.propertyId } },
+      include: {
+        guest: true,
+        messages: { orderBy: { createdAt: "desc" }, take: 1 },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+    res.json(
+      conversations.map((c) => ({
+        id: c.id,
+        guest: { id: c.guest.id, whatsappId: c.guest.whatsappId, name: c.guest.name },
+        aiPaused: c.aiPaused,
+        takenOverBy: c.takenOverBy,
+        lastMessage: c.messages[0]
+          ? { text: c.messages[0].rawText, direction: c.messages[0].direction, at: c.messages[0].createdAt.toISOString() }
+          : null,
+      }))
+    );
+  })
+);
+
+apiRouter.get(
+  "/conversations/:id/messages",
+  asyncRoute(async (req, res) => {
+    const { id } = IdParam.parse(req.params);
+    const conv = await ownConversation(req, res, id);
+    if (!conv) return;
+    const messages = await prisma.message.findMany({
+      where: { conversationId: id },
+      orderBy: { createdAt: "asc" },
+      take: 200,
+    });
+    res.json(messages.map((m) => ({ id: m.id, direction: m.direction, text: m.rawText, mediaType: m.mediaType, at: m.createdAt.toISOString() })));
+  })
+);
+
+// §6-ب step 1-2: staff presses «استلام المحادثة»; aiPaused flips true and
+// every automatic reply stops immediately (enforced in the ingest worker,
+// including for jobs already in flight).
+apiRouter.post(
+  "/conversations/:id/takeover",
+  asyncRoute(async (req, res) => {
+    const { id } = IdParam.parse(req.params);
+    const conv = await ownConversation(req, res, id);
+    if (!conv) return;
+    await prisma.conversation.update({
+      where: { id },
+      data: { aiPaused: true, takenOverBy: req.staff!.name, takenOverAt: new Date() },
+    });
+    await emitEvent(req.staff!.propertyId, { type: "conversation.takenover", conversationId: id, by: req.staff!.name });
+    await recordAudit({
+      ...auditContextFrom(req),
+      action: "conversation.takeover",
+      resourceType: "Conversation",
+      resourceId: id,
+    });
+    res.json({ aiPaused: true });
+  })
+);
+
+// §6-ب step 4: only an authorised manager may hand the conversation back
+// to the AI.
+apiRouter.post(
+  "/conversations/:id/resume-ai",
+  asyncRoute(async (req, res) => {
+    if (req.staff!.role !== "manager") {
+      res.status(403).json({ error: "only a manager can return a conversation to AI" });
+      return;
+    }
+    const { id } = IdParam.parse(req.params);
+    const conv = await ownConversation(req, res, id);
+    if (!conv) return;
+    await prisma.conversation.update({
+      where: { id },
+      data: { aiPaused: false, takenOverBy: null, takenOverAt: null },
+    });
+    await emitEvent(req.staff!.propertyId, { type: "conversation.resumed", conversationId: id, by: req.staff!.name });
+    await recordAudit({
+      ...auditContextFrom(req),
+      action: "conversation.resume_ai",
+      resourceType: "Conversation",
+      resourceId: id,
+    });
+    res.json({ aiPaused: false });
+  })
+);
+
+// §6-ب step 3: the manual staff reply, through the same gateway the AI
+// uses, so delivery and persistence behave identically.
+apiRouter.post(
+  "/conversations/:id/reply",
+  asyncRoute(async (req, res) => {
+    const { id } = IdParam.parse(req.params);
+    const { text } = z.object({ text: z.string().min(1).max(4000) }).parse(req.body);
+    const conv = await ownConversation(req, res, id);
+    if (!conv) return;
+    await sendWhatsAppMessage(id, text);
+    await recordAudit({
+      ...auditContextFrom(req),
+      action: "conversation.manual_reply",
+      resourceType: "Conversation",
+      resourceId: id,
+      metadata: { preview: text.slice(0, 120) },
+    });
+    res.status(201).json({ sent: true });
   })
 );
 

@@ -105,6 +105,12 @@ model Conversation {
   guestId   String
   guest     Guest    @relation(fields: [guestId], references: [id])
   channel   String   @default("whatsapp")
+  // §6-ب manual takeover: while true, no AI reply may be dispatched or
+  // sent on this conversation — a human owns it. Only a manager may
+  // return it to AI (enforced in the API).
+  aiPaused    Boolean   @default(false)
+  takenOverBy String?
+  takenOverAt DateTime?
   createdAt DateTime @default(now())
 
   messages Message[]

@@ -36,6 +36,35 @@ export interface InboundResult {
 }
 
 /**
+ * Records an inbound message with no AI processing at all — used while a
+ * human has taken the conversation over (§6-ب). The message and its
+ * event still appear so staff can reply; nothing is classified or sent.
+ */
+export async function recordInboundOnly(params: {
+  propertyId: string;
+  guestId: string;
+  conversationId: string;
+  text: string;
+  mediaType?: "text" | "voice";
+}): Promise<void> {
+  await prisma.message.create({
+    data: {
+      conversationId: params.conversationId,
+      direction: "inbound",
+      rawText: params.text,
+      mediaType: params.mediaType ?? "text",
+    },
+  });
+  await emitEvent(params.propertyId, {
+    type: "message.received",
+    conversationId: params.conversationId,
+    guestId: params.guestId,
+    mediaType: params.mediaType ?? "text",
+    preview: params.text.slice(0, 120),
+  });
+}
+
+/**
  * The Executive Manager's dispatch loop: one guest message can carry
  * multiple intents, each routed to its specialist agent independently.
  * Housekeeping/maintenance send immediately; reception/guest_service queue

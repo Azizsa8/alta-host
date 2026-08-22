@@ -13,6 +13,10 @@ export default defineConfig({
     fileParallelism: false,
     env: {
       DATABASE_URL: TEST_DATABASE_URL,
+      // The dev containers consume the default queue on this same Redis;
+      // without a distinct name their worker steals the suite's jobs and
+      // runs them against the dev database.
+      INGEST_QUEUE_NAME: "inbound-messages-test",
     },
   },
 });

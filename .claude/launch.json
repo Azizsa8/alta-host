@@ -1,0 +1,40 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "bela-site",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8933", "--directory", "/home/ais04/Downloads/ALTA-HOST/App/.bela_pricing_work/site"],
+      "port": 8933
+    },
+    {
+      "name": "alta-dashboard",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:dashboard"],
+      "port": 5173
+    },
+    {
+      "name": "pitch-preview",
+      "url": "http://localhost:8877",
+      "port": 8877
+    },
+    {
+      "name": "status-preview",
+      "url": "http://localhost:8879",
+      "port": 8879
+    },
+    {
+      "name": "alta-prototype",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd '/home/ais04/Downloads/ALTA-HOST/alta---ai-unified-hospitality-platform' && npm run dev"],
+      "port": 3010,
+      "autoPort": true
+    },
+    {
+      "name": "alta-deck",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8944", "--directory", "/tmp/claude-1000/-home-ais04-Downloads-ALTA-HOST-App/cb027d57-2584-4ef9-94db-673e7e175194/scratchpad/alta-deck"],
+      "port": 8944
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import { whatsappRouter } from "./modules/whatsapp/webhook.js";
 import { apiRouter } from "./modules/api/routes.js";
 import { authRouter } from "./modules/auth/routes.js";
 import { sseRouter } from "./modules/events/sse.js";
+import { docsRouter } from "./modules/api/docs.js";
 import { startIngestWorker } from "./modules/ingest/queue.js";
 import { startStorageSweep } from "./modules/storage/sweep.js";
 import { startReviewPoll } from "./modules/reputation/poll.js";
@@ -69,6 +70,8 @@ app.use(whatsappRouter);
 // authRouter is mounted before apiRouter applies its own requireAuth
 // middleware (see modules/api/routes.ts) — login/me must stay reachable
 // without a token already in hand.
+// API docs are public-read (§14) — mounted before requireAuth.
+app.use("/api", docsRouter);
 app.use("/api", authRouter);
 // SSE live feed — one long-lived request per dashboard, auth'd via the
 // same staff JWT (as ?token=, since EventSource can't set headers).

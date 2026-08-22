@@ -399,3 +399,47 @@ model AgentRun {
   @@index([propertyId, agentKey, createdAt])
   @@index([tenantId])
 }
+
+// §6-د / §8: linked social/review platform accounts. The OAuth token
+// itself lives in the credential vault (PropertyCredential, AES-256-GCM,
+// never shown) — this row holds only the non-secret linkage.
+model SocialAccount {
+  id         String    @id @default(uuid())
+  tenantId   String    @default("") // derived by DB trigger
+  propertyId String
+  platform   String    // google | instagram | facebook | tiktok
+  accountRef String    // the platform's location/page id
+  status     String    @default("linked") // linked | expired | revoked
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([propertyId, platform])
+  @@index([tenantId])
+}
+
+// §6-د / §11-6: fetched Google reviews with classification and the
+// human-gated reply flow. No auto-publish in v1 (§7) — replyStatus can
+// only reach published through an explicit approval.
+model GoogleReview {
+  id          String    @id @default(uuid())
+  tenantId    String    @default("") // derived by DB trigger
+  propertyId  String
+  externalId  String
+  stars       Int
+  text        String
+  author      String
+  reviewedAt  DateTime
+  sentiment   String    @default("neutral") // positive | neutral | negative
+  topic       String    @default("general") // cleanliness | staff | food | facilities | value | safety | general
+  draftReply  String    @default("")
+  replyStatus String    @default("none") // none | draft | approved | published
+  approvedBy  String?
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([propertyId, externalId])
+  @@index([propertyId, replyStatus])
+  @@index([tenantId])
+}

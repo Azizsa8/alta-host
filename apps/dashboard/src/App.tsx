@@ -12,8 +12,9 @@ import { Inbox } from "./pages/Inbox.js";
 import { Storage } from "./pages/Storage.js";
 import { WorkOrders } from "./pages/WorkOrders.js";
 import { AgentCentre } from "./pages/AgentCentre.js";
+import { Reputation } from "./pages/Reputation.js";
 
-type View = "ops" | "inbox" | "simulator" | "reviews" | "tickets" | "workorders" | "guests" | "storage" | "agents" | "report" | "audit";
+type View = "ops" | "inbox" | "simulator" | "reviews" | "tickets" | "workorders" | "guests" | "storage" | "agents" | "reputation" | "report" | "audit";
 
 const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
   { key: "ops", label: "مركز العمليات", icon: "hub" },
@@ -23,6 +24,7 @@ const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
   { key: "tickets", label: "لوحة التذاكر", icon: "confirmation_number" },
   { key: "workorders", label: "أوامر العمل", icon: "build" },
   { key: "agents", label: "مركز الوكلاء", icon: "smart_toy" },
+  { key: "reputation", label: "السمعة الرقمية", icon: "star" },
   { key: "guests", label: "النزلاء", icon: "groups" },
   { key: "storage", label: "الملفات والتخزين", icon: "folder" },
   { key: "report", label: "التقرير التنفيذي", icon: "summarize" },
@@ -37,6 +39,7 @@ const VIEW_TITLES: Record<View, string> = {
   tickets: "لوحة التذاكر",
   workorders: "أوامر العمل",
   agents: "مركز الوكلاء",
+  reputation: "السمعة الرقمية",
   guests: "النزلاء",
   storage: "الملفات والتخزين",
   report: "التقرير التنفيذي",
@@ -246,6 +249,7 @@ export default function App() {
           {view === "storage" && <Storage refreshKey={refreshKey} />}
           {view === "workorders" && <WorkOrders staff={staff} refreshKey={refreshKey} />}
           {view === "agents" && <AgentCentre staff={staff} refreshKey={refreshKey} />}
+          {view === "reputation" && <Reputation staff={staff} refreshKey={refreshKey} />}
           {view === "report" && <ExecutiveReport propertyId={staff.propertyId} refreshKey={refreshKey} />}
           {view === "audit" && <AuditTrail refreshKey={refreshKey} />}
         </div>

@@ -20,6 +20,7 @@ import {
   WO_PRIORITIES,
 } from "../workorders/service.js";
 import { setAgentEnabled } from "../knowledge/service.js";
+import { syncReviews, approveAndPublish } from "../reputation/service.js";
 import { recordAudit, auditContextFrom, verifyAuditChain } from "../audit/service.js";
 import { emitEvent } from "../events/bus.js";
 import { sendWhatsAppMessage } from "../whatsapp/gateway.js";
@@ -657,6 +658,111 @@ apiRouter.get(
       take: 100,
     });
     res.json(runs);
+  })
+);
+
+// ---- reputation: Google reviews (§6-د / §11-6) --------------------------
+
+// Link the property's Google account. mock: refs need no token; real refs
+// store the OAuth refresh token in the vault (§8) — it never lands in
+// SocialAccount and is never echoed back.
+apiRouter.post(
+  "/reputation/link",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "reputation.link")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const body = z
+      .object({
+        accountRef: z.string().min(3).max(200),
+        oauthRefreshToken: z.string().min(10).max(4000).optional(),
+      })
+      .parse(req.body);
+    if (!body.accountRef.startsWith("mock:") && !body.oauthRefreshToken) {
+      res.status(422).json({ error: "real accounts require oauthRefreshToken" });
+      return;
+    }
+    if (body.oauthRefreshToken) {
+      await setCredential({
+        propertyId: req.staff!.propertyId,
+        key: "google.oauthRefreshToken",
+        value: body.oauthRefreshToken,
+        actor: { actorName: req.staff!.name, actorId: req.staff!.staffId, ip: req.ip },
+      });
+    }
+    const account = await prisma.socialAccount.upsert({
+      where: { propertyId_platform: { propertyId: req.staff!.propertyId, platform: "google" } },
+      create: { propertyId: req.staff!.propertyId, platform: "google", accountRef: body.accountRef },
+      update: { accountRef: body.accountRef, status: "linked" },
+    });
+    await recordAudit({
+      actorName: req.staff!.name,
+      actorId: req.staff!.staffId,
+      propertyId: req.staff!.propertyId,
+      action: "reputation.link",
+      resourceType: "SocialAccount",
+      resourceId: account.id,
+      outcome: "success",
+      metadata: { accountRef: body.accountRef },
+    });
+    res.json({ linked: true, accountRef: account.accountRef });
+  })
+);
+
+apiRouter.post(
+  "/reputation/sync",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "reputation.view")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    res.json(await syncReviews(req.staff!.propertyId));
+  })
+);
+
+apiRouter.get(
+  "/reputation/reviews",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "reputation.view")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const reviews = await prisma.googleReview.findMany({
+      where: { propertyId: req.staff!.propertyId },
+      orderBy: { reviewedAt: "desc" },
+      take: 100,
+    });
+    const account = await prisma.socialAccount.findUnique({
+      where: { propertyId_platform: { propertyId: req.staff!.propertyId, platform: "google" } },
+    });
+    const avg = reviews.length > 0 ? reviews.reduce((a, r) => a + r.stars, 0) / reviews.length : 0;
+    res.json({ linked: !!account, accountRef: account?.accountRef ?? null, average: Math.round(avg * 10) / 10, reviews });
+  })
+);
+
+// §7: no auto-publish — this human approval is the ONLY path to published.
+apiRouter.post(
+  "/reputation/reviews/:id/approve",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "reputation.reply")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const { id } = IdParam.parse(req.params);
+    const { editedReply } = z.object({ editedReply: z.string().max(2000).optional() }).parse(req.body ?? {});
+    const result = await approveAndPublish({
+      propertyId: req.staff!.propertyId,
+      reviewId: id,
+      actorId: req.staff!.staffId,
+      actorName: req.staff!.name,
+      editedReply,
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.json({ published: true });
   })
 );
 

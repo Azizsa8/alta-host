@@ -109,3 +109,19 @@ Ordered by acceptance-gate value, not by ease:
 8. **OpenAPI/Swagger + handover pack** — §14 deliverables.
 
 Phases 1–4 of the brief's own plan (§12) are largely covered by what exists; the unbuilt weight is phases 4–5 (storage, reputation, marketing).
+
+---
+
+## Final status — 2026-08-22
+
+**All 10 master-plan phases shipped and merged (PRs #8–#18).** Every §11
+criterion has an automated test in `tests/acceptance.test.ts` plus a deep
+per-feature suite; 164 tests run in CI against real Postgres, Redis, and
+MinIO. Live-verified on the deployed compose stack throughout. Load:
+24.9–27.2 msg/s warm (floor: 20). Handover pack in `docs/handover/`
+(runbook, deploy, backup — rehearsed, UAT walkthrough, pilot checklist,
+warranty board). API contract at `/api/docs`, drift-gated in CI.
+
+The system is pilot-ready per §13. Remaining before a paying hotel:
+real WhatsApp Cloud API number, real GBP OAuth app approval, hosting in
+region, and the pilot onboarding checklist itself.

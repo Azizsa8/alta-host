@@ -11,8 +11,31 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+
+// The tenancy root the brief mandates (§2, §10): each hotel account owns
+// its plan, quota, users and data. A tenant may own several properties —
+// hotel groups are the real customer shape.
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  plan      String   @default("basic") // basic | pro | enterprise
+  status    String   @default("active") // active | suspended
+  timezone  String   @default("Asia/Riyadh")
+  language  String   @default("ar")
+  quotaGb   Int      @default(10)
+  usedBytes BigInt   @default(0)
+  createdAt DateTime @default(now())
+
+  properties Property[]
+}
+
 model Property {
   id          String   @id @default(uuid())
+  // Filled by a BEFORE INSERT trigger when omitted (auto-provisions a
+  // Tenant), so legacy write sites and tests keep working while the
+  // column stays NOT NULL in the database as §10 requires.
+  tenantId    String   @default("")
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id])
   name        String
   pmsType     String   @default("mock")
   createdAt   DateTime @default(now())
@@ -26,6 +49,7 @@ model Property {
 
 model Guest {
   id                String   @id @default(uuid())
+  tenantId String @default("") // derived by DB trigger from the parent row
   propertyId        String
   property          Property @relation(fields: [propertyId], references: [id])
   whatsappId        String   @unique
@@ -46,6 +70,7 @@ model Guest {
 
 model Reservation {
   id          String   @id @default(uuid())
+  tenantId String @default("") // derived by DB trigger from the parent row
   guestId     String
   guest       Guest    @relation(fields: [guestId], references: [id])
   propertyId  String
@@ -58,6 +83,7 @@ model Reservation {
 
 model StaffMember {
   id           String   @id @default(uuid())
+  tenantId String @default("") // derived by DB trigger from the parent row
   propertyId   String
   property     Property @relation(fields: [propertyId], references: [id])
   name         String
@@ -75,6 +101,7 @@ model StaffMember {
 
 model Conversation {
   id        String   @id @default(uuid())
+  tenantId String @default("") // derived by DB trigger from the parent row
   guestId   String
   guest     Guest    @relation(fields: [guestId], references: [id])
   channel   String   @default("whatsapp")
@@ -85,6 +112,7 @@ model Conversation {
 
 model Message {
   id             String       @id @default(uuid())
+  tenantId String @default("") // derived by DB trigger from the parent row
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   direction      String       // inbound | outbound
@@ -97,6 +125,7 @@ model Message {
 
 model Intent {
   id         String   @id @default(uuid())
+  tenantId String @default("") // derived by DB trigger from the parent row
   messageId  String
   message    Message  @relation(fields: [messageId], references: [id])
   type       String   // e.g. booking.extend_stay, housekeeping.clean_room
@@ -112,6 +141,7 @@ model Intent {
 
 model Ticket {
   id               String       @id @default(uuid())
+  tenantId String @default("") // derived by DB trigger from the parent row
   intentId         String       @unique
   intent           Intent       @relation(fields: [intentId], references: [id])
   department       String       // reception | housekeeping | maintenance | guest_service
@@ -129,6 +159,7 @@ model Ticket {
 
 model AgentAction {
   id        String   @id @default(uuid())
+  tenantId String @default("") // derived by DB trigger from the parent row
   ticketId  String
   ticket    Ticket   @relation(fields: [ticketId], references: [id])
   agent     String   // reception | guest_service | housekeeping | executive_manager
@@ -139,6 +170,7 @@ model AgentAction {
 
 model ReviewItem {
   id           String    @id @default(uuid())
+  tenantId String @default("") // derived by DB trigger from the parent row
   intentId     String    @unique
   intent       Intent    @relation(fields: [intentId], references: [id])
   department   String    // reception | guest_service
@@ -153,6 +185,7 @@ model ReviewItem {
 
 model Review {
   id         String   @id @default(uuid())
+  tenantId String @default("") // derived by DB trigger from the parent row
   propertyId String
   property   Property @relation(fields: [propertyId], references: [id])
   source     String   @default("google")
@@ -165,6 +198,7 @@ model Review {
 // incident replay. Append-only; seq is the SSE Last-Event-ID cursor.
 model AltaEvent {
   id         String   @id @default(uuid())
+  tenantId String @default("") // derived by DB trigger from the parent row
   seq        BigInt   @default(autoincrement()) @unique
   propertyId String
   type       String
@@ -182,6 +216,7 @@ model AltaEvent {
 // review approval mutates a real reservation and messages a real guest.
 model AuditEvent {
   id           String   @id @default(uuid())
+  tenantId String @default("") // derived by DB trigger from the parent row
   seq          BigInt   @default(autoincrement()) @unique
   propertyId   String?
   actorId      String?  // StaffMember id; null for system/unauthenticated
@@ -211,6 +246,7 @@ model AuditEvent {
 // never what they contain.
 model PropertyCredential {
   id             String   @id @default(uuid())
+  tenantId String @default("") // derived by DB trigger from the parent row
   propertyId     String
   property       Property @relation(fields: [propertyId], references: [id])
   key            String   // e.g. mews.clientToken, whatsapp.cloudApiToken

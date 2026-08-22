@@ -41,6 +41,24 @@ function asyncRoute(handler: (req: Request, res: Response) => Promise<void>) {
   };
 }
 
+
+/**
+ * The §11-1 gate for list endpoints. Callers may pass ?propertyId= (the
+ * dashboard always does), but the value is only honoured when it matches
+ * the authenticated staff's own property — anything else is a cross-tenant
+ * probe and gets a 403 rather than someone else's data. Before this,
+ * these endpoints trusted the query param outright, which let any staff
+ * token read any property's tickets/guests/reviews by changing one id.
+ */
+function scopedPropertyId(req: Request, res: Response, requested?: string): string | null {
+  const own = req.staff!.propertyId;
+  if (requested && requested !== own) {
+    res.status(403).json({ error: "propertyId does not belong to your account" });
+    return null;
+  }
+  return own;
+}
+
 // Optional propertyId query param, used by list/metrics endpoints that can
 // be scoped to a single property or return everything when omitted.
 const PropertyIdQuery = z.object({
@@ -74,6 +92,7 @@ apiRouter.post(
   "/simulate",
   asyncRoute(async (req, res) => {
     const payload = SimulatePayload.parse(req.body);
+    if (!scopedPropertyId(req, res, payload.propertyId)) return;
     const result = await handleInbound(payload);
     res.json(result);
   })
@@ -219,10 +238,12 @@ apiRouter.get(
 apiRouter.get(
   "/tickets",
   asyncRoute(async (req, res) => {
-    const { propertyId } = PropertyIdQuery.parse(req.query);
+    const { propertyId: requested } = PropertyIdQuery.parse(req.query);
+    const propertyId = scopedPropertyId(req, res, requested);
+    if (!propertyId) return;
     await applyPendingEscalations();
     const tickets = await prisma.ticket.findMany({
-      where: propertyId ? { intent: { message: { conversation: { guest: { propertyId } } } } } : undefined,
+      where: { intent: { message: { conversation: { guest: { propertyId } } } } },
       include: {
         intent: { include: { message: { include: { conversation: { include: { guest: true } } } } } },
         assignedStaff: true,
@@ -247,9 +268,11 @@ apiRouter.patch(
 apiRouter.get(
   "/guests",
   asyncRoute(async (req, res) => {
-    const { propertyId } = PropertyIdQuery.parse(req.query);
+    const { propertyId: requested } = PropertyIdQuery.parse(req.query);
+    const propertyId = scopedPropertyId(req, res, requested);
+    if (!propertyId) return;
     const guests = await prisma.guest.findMany({
-      where: propertyId ? { propertyId } : undefined,
+      where: { propertyId },
       include: {
         reservations: { orderBy: { checkIn: "desc" }, take: 1 },
         conversations: {
@@ -267,7 +290,9 @@ apiRouter.get(
 apiRouter.get(
   "/reviews",
   asyncRoute(async (req, res) => {
-    const { propertyId } = PropertyIdQuery.parse(req.query);
+    const { propertyId: requested } = PropertyIdQuery.parse(req.query);
+    const propertyId = scopedPropertyId(req, res, requested);
+    if (!propertyId) return;
     const items = await listPendingReviews(propertyId);
     res.json(items);
   })
@@ -313,7 +338,9 @@ apiRouter.patch(
 apiRouter.get(
   "/reports/daily",
   asyncRoute(async (req, res) => {
-    const { propertyId } = RequiredPropertyIdQuery.parse(req.query);
+    const { propertyId: requested } = RequiredPropertyIdQuery.parse(req.query);
+    const propertyId = scopedPropertyId(req, res, requested);
+    if (!propertyId) return;
     res.json(await generateDailyReport(propertyId));
   })
 );
@@ -321,14 +348,12 @@ apiRouter.get(
 apiRouter.get(
   "/metrics",
   asyncRoute(async (req, res) => {
-    const { propertyId } = PropertyIdQuery.parse(req.query);
+    const { propertyId: requested } = PropertyIdQuery.parse(req.query);
+    const propertyId = scopedPropertyId(req, res, requested);
+    if (!propertyId) return;
     await applyPendingEscalations();
-    const ticketWhere = propertyId
-      ? { intent: { message: { conversation: { guest: { propertyId } } } } }
-      : undefined;
-    const urgentIntentWhere = propertyId
-      ? { urgency: "urgent", message: { conversation: { guest: { propertyId } } } }
-      : { urgency: "urgent" };
+    const ticketWhere = { intent: { message: { conversation: { guest: { propertyId } } } } };
+    const urgentIntentWhere = { urgency: "urgent", message: { conversation: { guest: { propertyId } } } };
 
     const [totalTickets, openTickets, escalatedTickets, urgentIntents, guestCount, pendingReviews] =
       await Promise.all([

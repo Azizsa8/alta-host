@@ -40,7 +40,7 @@ authRouter.post("/auth/login", async (req, res) => {
     return;
   }
 
-  const token = signStaffToken({ staffId: staff.id, propertyId: staff.propertyId, name: staff.name, role: staff.role });
+  const token = signStaffToken({ staffId: staff.id, tenantId: staff.tenantId, propertyId: staff.propertyId, name: staff.name, role: staff.role });
   await recordAudit({
     action: "auth.login",
     actorId: staff.id,

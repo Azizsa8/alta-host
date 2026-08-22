@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 
 export interface StaffTokenPayload {
   staffId: string;
+  tenantId: string;
   propertyId: string;
   name: string;
   role: string;

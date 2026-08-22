@@ -9,7 +9,7 @@ import { signStaffToken, verifyStaffToken } from "../src/modules/auth/tokens.js"
 
 describe("staff token sign/verify", () => {
   it("round-trips a payload", () => {
-    const token = signStaffToken({ staffId: "s1", propertyId: "p1", name: "Test Staff", role: "reception" });
+    const token = signStaffToken({ staffId: "s1", tenantId: "t1", propertyId: "p1", name: "Test Staff", role: "reception" });
     const decoded = verifyStaffToken(token);
     expect(decoded).toMatchObject({ staffId: "s1", propertyId: "p1", name: "Test Staff", role: "reception" });
   });
@@ -21,7 +21,7 @@ describe("staff token sign/verify", () => {
   it("rejects a token signed with a different secret", () => {
     const original = process.env.JWT_SECRET;
     process.env.JWT_SECRET = "secret-a";
-    const token = signStaffToken({ staffId: "s1", propertyId: "p1", name: "Test Staff", role: "reception" });
+    const token = signStaffToken({ staffId: "s1", tenantId: "t1", propertyId: "p1", name: "Test Staff", role: "reception" });
     process.env.JWT_SECRET = "secret-b";
     expect(verifyStaffToken(token)).toBeNull();
     process.env.JWT_SECRET = original;

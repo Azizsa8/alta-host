@@ -1,0 +1,78 @@
+/**
+ * The role model from the brief (§3), enforced in the API (§11-10).
+ *
+ * One exhaustive table instead of role checks scattered through routes:
+ * every permission decision goes through can(), so "who may do what" is
+ * one reviewable file rather than an archaeology project.
+ */
+
+export const ROLES = [
+  "alta_admin", // مدير منصة ALTA — cross-tenant platform operator
+  "hotel_manager", // مدير الفندق
+  "general_manager", // المدير العام — read-heavy oversight
+  "reception", // الاستقبال
+  "maintenance_manager", // مدير الصيانة
+  "technician", // الفني — sees only their own work
+  "marketing_manager", // مدير التسويق
+] as const;
+export type Role = (typeof ROLES)[number];
+
+export const ACTIONS = [
+  "conversations.view",
+  "conversations.takeover",
+  "conversations.resume_ai", // §6-ب: manager-gated
+  "conversations.reply",
+  "tickets.view",
+  "tickets.update",
+  "reviews.decide",
+  "credentials.manage", // per-hotel API tokens
+  "audit.view",
+  "reports.view",
+  "agents.view",
+  "simulate.run",
+] as const;
+export type Action = (typeof ACTIONS)[number];
+
+const MANAGERS: Role[] = ["hotel_manager", "general_manager"];
+const FRONT_OF_HOUSE: Role[] = ["reception", ...MANAGERS];
+
+/** Exhaustive: every action lists exactly who may perform it. alta_admin
+ *  is deliberately NOT a superset — §3 forbids the platform operator from
+ *  guest-data access without authorisation, so guest-facing actions
+ *  exclude it by default. */
+const POLICY: Record<Action, Role[]> = {
+  "conversations.view": [...FRONT_OF_HOUSE, "maintenance_manager"],
+  "conversations.takeover": FRONT_OF_HOUSE,
+  "conversations.resume_ai": MANAGERS,
+  "conversations.reply": FRONT_OF_HOUSE,
+  "tickets.view": [...FRONT_OF_HOUSE, "maintenance_manager", "technician"],
+  "tickets.update": [...FRONT_OF_HOUSE, "maintenance_manager"],
+  "reviews.decide": FRONT_OF_HOUSE,
+  "credentials.manage": ["hotel_manager"],
+  "audit.view": [...MANAGERS, "alta_admin"],
+  "reports.view": [...MANAGERS, "marketing_manager"],
+  "agents.view": [...FRONT_OF_HOUSE, "maintenance_manager", "marketing_manager"],
+  "simulate.run": FRONT_OF_HOUSE,
+};
+
+export function can(role: string, action: Action): boolean {
+  return (POLICY[action] as readonly string[]).includes(role);
+}
+
+/** Legacy role names → the brief's role model (§3). housekeeping and
+ *  guest_service were departments mislabeled as login roles; their staff
+ *  keep department assignment via StaffMember.role for ticket routing but
+ *  map to reception-level dashboard access. */
+export function normaliseRole(role: string): Role {
+  switch (role) {
+    case "manager":
+      return "hotel_manager";
+    case "maintenance":
+      return "maintenance_manager";
+    case "housekeeping":
+    case "guest_service":
+      return "reception";
+    default:
+      return (ROLES as readonly string[]).includes(role) ? (role as Role) : "reception";
+  }
+}

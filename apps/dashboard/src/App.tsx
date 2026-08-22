@@ -38,8 +38,14 @@ const ROLE_LABELS: Record<string, string> = {
   reception: "الاستقبال",
   housekeeping: "التدبير المنزلي",
   maintenance: "الصيانة",
+  maintenance_manager: "مدير الصيانة",
   guest_service: "خدمة النزلاء",
   manager: "الإدارة",
+  hotel_manager: "مدير الفندق",
+  general_manager: "المدير العام",
+  technician: "فني",
+  marketing_manager: "مدير التسويق",
+  alta_admin: "إدارة المنصة",
 };
 
 export default function App() {

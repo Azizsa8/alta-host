@@ -87,7 +87,14 @@ model StaffMember {
   propertyId   String
   property     Property @relation(fields: [propertyId], references: [id])
   name         String
-  role         String   // reception | housekeeping | maintenance | manager
+  // Dashboard permission role (§3): alta_admin | hotel_manager |
+  // general_manager | reception | maintenance_manager | technician |
+  // marketing_manager. Legacy names are normalised at login.
+  role         String
+  // Ticket-routing department (reception | housekeeping | maintenance |
+  // guest_service) — separate from role: a maintenance manager is not the
+  // routing target for every fault, a technician is.
+  department   String?
   onShift      Boolean  @default(true)
   whatsappId   String?
   // Dashboard login — both null means this staff record can't log in (e.g.

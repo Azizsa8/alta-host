@@ -22,7 +22,7 @@ export function Inbox({ staff, refreshKey }: { staff: Staff; refreshKey: number 
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
-  const isManager = staff.role === "manager";
+  const isManager = ["manager", "hotel_manager", "general_manager"].includes(staff.role);
 
   useEffect(() => {
     api.conversations().then(setConversations).catch(() => {});

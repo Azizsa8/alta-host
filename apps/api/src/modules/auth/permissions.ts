@@ -43,6 +43,9 @@ export const ACTIONS = [
   "reputation.view",
   "reputation.reply", // approve + publish a review reply — no auto-publish (§7)
   "reputation.link", // link/unlink the platform account
+  "content.view",
+  "content.edit", // ideas, drafts, brand profile
+  "content.approve", // §7: publish only after this human act
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -79,6 +82,9 @@ const POLICY: Record<Action, Role[]> = {
   "reputation.view": [...MANAGERS, "marketing_manager", "reception"],
   "reputation.reply": [...MANAGERS, "marketing_manager"],
   "reputation.link": MANAGERS,
+  "content.view": [...MANAGERS, "marketing_manager", "reception"],
+  "content.edit": [...MANAGERS, "marketing_manager"],
+  "content.approve": [...MANAGERS, "marketing_manager"],
 };
 
 export function can(role: string, action: Action): boolean {

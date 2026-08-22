@@ -254,7 +254,42 @@ export const api = {
   syncReviews: () => request<{ fetched: number; new: number }>("/reputation/sync", { method: "POST" }),
   publishReviewReply: (id: string, editedReply?: string) =>
     request<{ published: boolean }>(`/reputation/reviews/${id}/approve`, { method: "POST", body: JSON.stringify({ editedReply }) }),
+  brandProfile: () => request<BrandProfile>("/content/brand"),
+  saveBrandProfile: (p: Partial<BrandProfile>) =>
+    request<BrandProfile>("/content/brand", { method: "PUT", body: JSON.stringify(p) }),
+  contentIdeas: () => request<{ ideas: string[] }>("/content/ideas", { method: "POST" }),
+  contentItems: () => request<ContentItemRow[]>("/content"),
+  createContent: (p: { idea: string; channel: string; mediaFileIds?: string[] }) =>
+    request<ContentItemRow>("/content", { method: "POST", body: JSON.stringify(p) }),
+  editContent: (id: string, p: { bodyAr?: string; bodyEn?: string; mediaFileIds?: string[] }) =>
+    request<ContentItemRow>(`/content/${id}`, { method: "PATCH", body: JSON.stringify(p) }),
+  transitionContent: (id: string, to: string, scheduledAt?: string) =>
+    request<ContentItemRow>(`/content/${id}/transition`, { method: "POST", body: JSON.stringify({ to, scheduledAt }) }),
+  publishContent: (id: string) =>
+    request<{ published: boolean; resultUrl: string }>(`/content/${id}/publish`, { method: "POST" }),
 };
+
+export interface BrandProfile {
+  identity: string;
+  services: string[];
+  offers: string[];
+  audience: string;
+  tone: string;
+  language: "ar" | "en" | "both";
+}
+
+export interface ContentItemRow {
+  id: string;
+  idea: string;
+  bodyAr: string;
+  bodyEn: string;
+  channel: string;
+  status: string;
+  scheduledAt: string | null;
+  publishedAt: string | null;
+  resultUrl: string;
+  updatedAt: string;
+}
 
 export interface GoogleReviewRow {
   id: string;

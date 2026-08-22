@@ -443,3 +443,46 @@ model GoogleReview {
   @@index([propertyId, replyStatus])
   @@index([tenantId])
 }
+
+// §6-هـ step 1: the brand identity that grounds every generated idea and
+// draft — services, offers, audience, tone. One per property.
+model BrandProfile {
+  id         String   @id @default(uuid())
+  tenantId   String   @default("") // derived by DB trigger
+  propertyId String   @unique
+  identity   String   @default("") // who the hotel is, in its own words
+  services   Json     @default("[]")
+  offers     Json     @default("[]")
+  audience   String   @default("")
+  tone       String   @default("ودّي واحترافي") // the voice guests hear
+  language   String   @default("ar") // ar | en | both
+  updatedAt  DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+// §6-هـ / §11-7: one piece of social content through its whole life.
+// The §7 gate: status can only reach published through approved — the
+// transition table in the service is the enforcement, tested.
+model ContentItem {
+  id           String    @id @default(uuid())
+  tenantId     String    @default("") // derived by DB trigger
+  propertyId   String
+  idea         String
+  bodyAr       String    @default("")
+  bodyEn       String    @default("")
+  mediaFileIds Json      @default("[]") // Phase 4 storage files
+  channel      String    // instagram | facebook | tiktok
+  status       String    @default("idea") // idea | draft | in_review | approved | scheduled | published | failed | rejected
+  approvedBy   String?
+  scheduledAt  DateTime?
+  publishedAt  DateTime?
+  resultUrl    String    @default("")
+  metrics      Json      @default("{}")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([propertyId, status])
+  @@index([status, scheduledAt])
+  @@index([tenantId])
+}

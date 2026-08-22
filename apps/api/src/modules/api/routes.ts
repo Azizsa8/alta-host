@@ -21,6 +21,13 @@ import {
 } from "../workorders/service.js";
 import { setAgentEnabled } from "../knowledge/service.js";
 import { syncReviews, approveAndPublish } from "../reputation/service.js";
+import {
+  generateIdeas,
+  draftFromIdea,
+  transitionContent,
+  publishContent,
+  CONTENT_CHANNELS,
+} from "../content/service.js";
 import { recordAudit, auditContextFrom, verifyAuditChain } from "../audit/service.js";
 import { emitEvent } from "../events/bus.js";
 import { sendWhatsAppMessage } from "../whatsapp/gateway.js";
@@ -763,6 +770,182 @@ apiRouter.post(
       return;
     }
     res.json({ published: true });
+  })
+);
+
+// ---- content studio (§6-هـ / §11-7) ------------------------------------
+
+apiRouter.get(
+  "/content/brand",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "content.view")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const profile = await prisma.brandProfile.findUnique({ where: { propertyId: req.staff!.propertyId } });
+    res.json(profile ?? { identity: "", services: [], offers: [], audience: "", tone: "ودّي واحترافي", language: "ar" });
+  })
+);
+
+const BrandBody = z.object({
+  identity: z.string().max(500).optional(),
+  services: z.array(z.string().min(1).max(80)).max(20).optional(),
+  offers: z.array(z.string().min(1).max(120)).max(20).optional(),
+  audience: z.string().max(300).optional(),
+  tone: z.string().max(80).optional(),
+  language: z.enum(["ar", "en", "both"]).optional(),
+});
+
+apiRouter.put(
+  "/content/brand",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "content.edit")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const body = BrandBody.parse(req.body);
+    const profile = await prisma.brandProfile.upsert({
+      where: { propertyId: req.staff!.propertyId },
+      create: { propertyId: req.staff!.propertyId, ...body },
+      update: body,
+    });
+    res.json(profile);
+  })
+);
+
+apiRouter.post(
+  "/content/ideas",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "content.edit")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    res.json({ ideas: await generateIdeas(req.staff!.propertyId) });
+  })
+);
+
+apiRouter.get(
+  "/content",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "content.view")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const items = await prisma.contentItem.findMany({
+      where: { propertyId: req.staff!.propertyId },
+      orderBy: { updatedAt: "desc" },
+      take: 200,
+    });
+    res.json(items);
+  })
+);
+
+const ContentCreate = z.object({
+  idea: z.string().min(3).max(300),
+  channel: z.enum(CONTENT_CHANNELS),
+  mediaFileIds: z.array(z.string().uuid()).max(10).optional(),
+});
+
+apiRouter.post(
+  "/content",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "content.edit")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const body = ContentCreate.parse(req.body);
+    const drafts = await draftFromIdea(req.staff!.propertyId, body.idea);
+    const item = await prisma.contentItem.create({
+      data: {
+        propertyId: req.staff!.propertyId,
+        idea: body.idea,
+        channel: body.channel,
+        mediaFileIds: body.mediaFileIds ?? [],
+        bodyAr: drafts.bodyAr,
+        bodyEn: drafts.bodyEn,
+        status: "draft",
+      },
+    });
+    res.status(201).json(item);
+  })
+);
+
+const ContentEdit = z.object({
+  bodyAr: z.string().max(4000).optional(),
+  bodyEn: z.string().max(4000).optional(),
+  mediaFileIds: z.array(z.string().uuid()).max(10).optional(),
+});
+
+apiRouter.patch(
+  "/content/:id",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "content.edit")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const { id } = IdParam.parse(req.params);
+    const body = ContentEdit.parse(req.body);
+    const existing = await prisma.contentItem.findUnique({ where: { id } });
+    if (!existing || existing.propertyId !== req.staff!.propertyId) {
+      res.status(404).json({ error: "content not found" });
+      return;
+    }
+    if (existing.status === "published") {
+      res.status(409).json({ error: "published content is immutable" });
+      return;
+    }
+    const item = await prisma.contentItem.update({ where: { id }, data: body });
+    res.json(item);
+  })
+);
+
+const ContentTransition = z.object({
+  to: z.enum(["draft", "in_review", "approved", "rejected", "scheduled", "failed"]),
+  scheduledAt: z.coerce.date().optional(),
+});
+
+apiRouter.post(
+  "/content/:id/transition",
+  asyncRoute(async (req, res) => {
+    const { id } = IdParam.parse(req.params);
+    const body = ContentTransition.parse(req.body);
+    // approval/rejection is its own permission (§7); other moves are edit-level
+    const needed = body.to === "approved" || body.to === "rejected" ? "content.approve" : "content.edit";
+    if (!can(req.staff!.role, needed)) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const result = await transitionContent({
+      actor: { staffId: req.staff!.staffId, name: req.staff!.name, propertyId: req.staff!.propertyId },
+      contentId: id,
+      to: body.to,
+      scheduledAt: body.scheduledAt,
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.json(result.item);
+  })
+);
+
+apiRouter.post(
+  "/content/:id/publish",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "content.approve")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const { id } = IdParam.parse(req.params);
+    const result = await publishContent({
+      actor: { staffId: req.staff!.staffId, name: req.staff!.name, propertyId: req.staff!.propertyId },
+      contentId: id,
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.json({ published: true, resultUrl: result.resultUrl });
   })
 );
 

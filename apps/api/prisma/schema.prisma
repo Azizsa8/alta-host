@@ -273,3 +273,24 @@ model PropertyCredential {
   @@unique([propertyId, key])
   @@index([propertyId])
 }
+
+// §5: file metadata lives here; bytes live in object storage. Nothing is
+// ever public — reads and writes go through short-lived signed URLs.
+model StorageFile {
+  id         String    @id @default(uuid())
+  tenantId   String    @default("") // derived by DB trigger from the parent row
+  propertyId String
+  kind       String    // fault_photo | content_media | post_image | policy_doc | ticket_attachment
+  path       String    @unique // {propertyId}/{kind}/{yyyy}/{mm}/{id}-{name}
+  name       String
+  mime       String
+  sizeBytes  BigInt
+  ownerId    String?   // StaffMember who uploaded
+  status     String    @default("pending") // pending | active | trashed | deleted
+  trashedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([propertyId, kind])
+  @@index([tenantId])
+  @@index([status, trashedAt])
+}

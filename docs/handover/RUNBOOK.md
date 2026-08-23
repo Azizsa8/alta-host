@@ -16,6 +16,16 @@
   `whatsapp.cloudApiToken` و `whatsapp.phoneNumberId` (تُخزَّن مشفّرة AES-256-GCM، لا تُعرض أبدًا).
   ثم وجّه Webhook ميتا إلى `POST /webhook/whatsapp`.
 
+### تجربة واتساب محليًا عبر WAHA
+1. في `.env`: `WHATSAPP_PROVIDER=waha` و `WAHA_API_KEY=<مفتاح ثابت من اختيارك>`.
+   **مهم:** WAHA يولّد مفتاحًا عشوائيًا عند كل إقلاع ويرفض كل الطلبات بدونه —
+   إن تُرك فارغًا يبقى الاستقبال شغّالًا بينما يفشل الإرسال بصمت (401).
+2. `docker compose --profile dev up -d waha` ثم افتح `http://localhost:3210`
+   وامسح رمز QR بجوال الفندق.
+3. الجلسة محفوظة في volume باسم `waha-sessions` — لا يلزم مسح QR بعد كل تشغيل.
+4. تحقق: `curl -H "X-Api-Key: $WAHA_API_KEY" http://localhost:3210/api/sessions`
+   يجب أن تكون `"status":"WORKING"`.
+
 ## ربط Google (التقييمات)
 - تجريبي: زر «ربط حساب تجريبي» في شاشة السمعة الرقمية (accountRef يبدأ بـ `mock:`).
 - إنتاج: `POST /api/reputation/link` مع `accountRef` (مسار الموقع في GBP) و`oauthRefreshToken`

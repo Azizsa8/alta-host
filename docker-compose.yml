@@ -123,6 +123,12 @@ services:
       WHATSAPP_DEFAULT_ENGINE: NOWEB
     ports:
       - "${WAHA_PORT:-3210}:3000"
+    # WAHA keeps the paired WhatsApp session on disk. Without this volume it
+    # lives only in the container's writable layer, so ANY recreate (an image
+    # pull, a compose edit) silently unpairs the phone and demands a fresh QR
+    # scan — discovered the hard way during a live owner test.
+    volumes:
+      - waha-sessions:/app/.sessions
 
   web:
     build:
@@ -138,6 +144,7 @@ services:
       - "${WEB_TLS_PORT:-8443}:443"
 
 volumes:
+  waha-sessions:
   alta-db-data:
   alta-redis-data:
   alta-minio-data:

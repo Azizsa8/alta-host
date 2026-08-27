@@ -1,19 +1,23 @@
 # Local docker-compose defaults to plain :80. For a real pilot, set
 # SITE_ADDRESS to the property's domain (e.g. alta.example-hotel.com) and
 # Caddy handles TLS automatically — no other change needed.
+# PORT is injected by the host on PaaS platforms (Railway/Render); locally
+# docker-compose maps :80. API_UPSTREAM lets the same image point at a
+# sibling container (compose: api:4317) or a private-network hostname
+# (Railway: api.railway.internal:4317) without a rebuild.
 {$SITE_ADDRESS:http://:80} {
 	encode gzip
 
 	# WhatsApp Cloud API webhook + the dashboard's REST calls both go to
 	# the api service — this is the only place that routing decision lives.
 	handle /webhook/* {
-		reverse_proxy api:4317
+		reverse_proxy {$API_UPSTREAM:api:4317}
 	}
 	handle /api/* {
-		reverse_proxy api:4317
+		reverse_proxy {$API_UPSTREAM:api:4317}
 	}
 	handle /health {
-		reverse_proxy api:4317
+		reverse_proxy {$API_UPSTREAM:api:4317}
 	}
 
 	handle {

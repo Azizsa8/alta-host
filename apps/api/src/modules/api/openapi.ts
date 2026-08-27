@@ -140,6 +140,29 @@ export const OPERATIONS: Record<string, Partial<Record<"get" | "post" | "patch" 
   "/platform/tenants/{id}": {
     patch: { summary: "Set plan/quota, suspend or reactivate — suspension cuts the hotel's staff API access", tag: "platform", params: ["id"], body: { plan: "optional", quotaGb: "optional", status: "active|suspended" } },
   },
+  "/social/channels": {
+    get: { summary: "Every catalogue channel merged with this hotel's settings and analytics", tag: "social" },
+  },
+  "/social/channels/{channel}": {
+    patch: { summary: "Per-channel settings: enable, handle, cadence, best times, tone, hashtags, auto-publish (§7 default off)", tag: "social", params: ["channel"], body: { enabled: "boolean", autoPublish: "boolean — off means every post needs approval", handle: "string", postsPerWeek: "number", bestTimes: "HH:MM[]", tone: "string", hashtags: "string[]", audienceNote: "string" } },
+  },
+  "/social/channels/{channel}/generate": {
+    post: { summary: "Generate drafts sized and toned for this channel; over-length drafts are flagged, never silently cut", tag: "social", params: ["channel"], body: { count: "1-5" } },
+  },
+  "/social/calendar": { get: { summary: "Slot plan per channel from cadence + best times, with gaps flagged", tag: "social", query: ["days"] } },
+  "/social/analytics": { get: { summary: "Followers, reach, engagement per channel; flags configured-but-idle channels", tag: "social" } },
+  "/complaints": {
+    get: { summary: "Complaint cases, highest reputation risk first", tag: "complaints", query: ["status"] },
+    post: { summary: "Open a case from a staff-reported complaint; triage scores category, severity and reputation risk", tag: "complaints", body: { text: "string", guestId: "optional uuid" } },
+  },
+  "/complaints/patterns": { get: { summary: "90-day view: repeat root causes, category mix, containment rate, median resolution", tag: "complaints" } },
+  "/complaints/{id}": {
+    get: { summary: "One case with its RCA answers and action plan", tag: "complaints", params: ["id"] },
+    patch: { summary: "Update status/actions/owner — resolving needs a root cause AND a completed action, and is manager-only", tag: "complaints", params: ["id"], body: { status: "open|investigating|action_planned|resolved|escalated", actions: "[{action,owner,dueAt,done}]", preventive: "string", ownerId: "uuid", resolutionNote: "string" } },
+  },
+  "/complaints/{id}/rca": {
+    post: { summary: "Record the five-whys answers and root cause; derives an action plan whose deadlines tighten with severity", tag: "complaints", params: ["id"], body: { answers: "[{question,answer}]", rootCause: "string (required)", contributing: "string[]" } },
+  },
   "/audit": { get: { summary: "Tamper-evident audit trail (SHA-256 hash chain)", tag: "audit", query: ["limit", "action"] } },
   "/audit/verify": { get: { summary: "Walk the hash chain; reports first broken seq if any", tag: "audit" } },
   "/credentials": {
@@ -186,7 +209,7 @@ export function buildOpenApiSpec(): Record<string, unknown> {
       { name: "auth" }, { name: "core" }, { name: "events" }, { name: "agents" },
       { name: "knowledge" }, { name: "tickets" }, { name: "reviews" }, { name: "guests" },
       { name: "inbox" }, { name: "workorders" }, { name: "storage" }, { name: "reputation" },
-      { name: "content" }, { name: "audit" }, { name: "credentials" }, { name: "platform" },
+      { name: "content" }, { name: "social" }, { name: "complaints" }, { name: "audit" }, { name: "credentials" }, { name: "platform" },
     ],
     paths,
   };

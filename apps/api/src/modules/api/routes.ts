@@ -23,6 +23,22 @@ import { setAgentEnabled } from "../knowledge/service.js";
 import { syncReviews, approveAndPublish } from "../reputation/service.js";
 import { createHotel, setTenantState, listTenants, isTenantSuspended, TENANT_PLANS } from "../platform/service.js";
 import {
+  listChannels,
+  updateChannel,
+  generateForChannel,
+  channelCalendar,
+  channelAnalytics,
+} from "../social/service.js";
+import { CHANNEL_KEYS } from "../social/catalogue.js";
+import {
+  captureComplaint,
+  ownCase,
+  recordRca,
+  updateCase,
+  complaintPatterns,
+  CASE_STATUSES,
+} from "../complaints/service.js";
+import {
   generateIdeas,
   draftFromIdea,
   transitionContent,
@@ -1032,6 +1048,227 @@ apiRouter.patch(
     const result = await setTenantState({
       actor: { staffId: req.staff!.staffId, name: req.staff!.name },
       tenantId: id,
+      ...body,
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.json({ updated: true });
+  })
+);
+
+// ---- social media manager (§6-هـ, multi-channel) -----------------------
+
+apiRouter.get(
+  "/social/channels",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "social.view")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    res.json(await listChannels(req.staff!.propertyId));
+  })
+);
+
+const ChannelPatch = z.object({
+  enabled: z.boolean().optional(),
+  autoPublish: z.boolean().optional(),
+  handle: z.string().max(120).optional(),
+  postsPerWeek: z.number().int().min(0).max(50).optional(),
+  bestTimes: z.array(z.string().regex(/^\d{2}:\d{2}$/)).max(8).optional(),
+  tone: z.string().max(200).optional(),
+  hashtags: z.array(z.string().min(1).max(60)).max(30).optional(),
+  audienceNote: z.string().max(400).optional(),
+});
+
+apiRouter.patch(
+  "/social/channels/:channel",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "social.manage")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const { channel } = z.object({ channel: z.enum(CHANNEL_KEYS as [string, ...string[]]) }).parse(req.params);
+    const body = ChannelPatch.parse(req.body);
+    const result = await updateChannel({
+      actor: { staffId: req.staff!.staffId, name: req.staff!.name, propertyId: req.staff!.propertyId },
+      channel,
+      patch: body,
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.json(result.channel);
+  })
+);
+
+apiRouter.post(
+  "/social/channels/:channel/generate",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "social.manage")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const { channel } = z.object({ channel: z.enum(CHANNEL_KEYS as [string, ...string[]]) }).parse(req.params);
+    const { count } = z.object({ count: z.number().int().min(1).max(5).optional() }).parse(req.body ?? {});
+    const result = await generateForChannel({
+      propertyId: req.staff!.propertyId,
+      channel,
+      count,
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.status(201).json(result);
+  })
+);
+
+apiRouter.get(
+  "/social/calendar",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "social.view")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const days = Math.min(60, Math.max(1, Number(req.query.days ?? 14)));
+    res.json(await channelCalendar(req.staff!.propertyId, days));
+  })
+);
+
+apiRouter.get(
+  "/social/analytics",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "social.view")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    res.json(await channelAnalytics(req.staff!.propertyId));
+  })
+);
+
+// ---- complaint & reputation manager (§6-د, pre-publication) ------------
+
+apiRouter.get(
+  "/complaints",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "complaints.view")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const status = typeof req.query.status === "string" ? req.query.status : undefined;
+    const cases = await prisma.complaintCase.findMany({
+      where: { propertyId: req.staff!.propertyId, ...(status ? { status } : {}) },
+      orderBy: [{ reputationRisk: "desc" }, { createdAt: "desc" }],
+      take: 200,
+    });
+    res.json(cases);
+  })
+);
+
+apiRouter.get(
+  "/complaints/patterns",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "complaints.view")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    res.json(await complaintPatterns(req.staff!.propertyId));
+  })
+);
+
+apiRouter.post(
+  "/complaints",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "complaints.investigate")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const body = z
+      .object({ text: z.string().min(3).max(4000), guestId: z.string().uuid().optional() })
+      .parse(req.body);
+    const { kase, triage } = await captureComplaint({
+      propertyId: req.staff!.propertyId,
+      text: body.text,
+      guestId: body.guestId,
+      source: "staff",
+    });
+    res.status(201).json({ case: kase, triage });
+  })
+);
+
+apiRouter.get(
+  "/complaints/:id",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "complaints.view")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const { id } = IdParam.parse(req.params);
+    const kase = await ownCase(req.staff!.propertyId, id);
+    if (!kase) {
+      res.status(404).json({ error: "case not found" });
+      return;
+    }
+    res.json(kase);
+  })
+);
+
+apiRouter.post(
+  "/complaints/:id/rca",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "complaints.investigate")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const { id } = IdParam.parse(req.params);
+    const body = z
+      .object({
+        answers: z.array(z.object({ question: z.string(), answer: z.string().max(1000) })).max(10),
+        rootCause: z.string().min(3).max(600),
+        contributing: z.array(z.string().max(300)).max(10).optional(),
+      })
+      .parse(req.body);
+    const result = await recordRca({
+      actor: { staffId: req.staff!.staffId, name: req.staff!.name, propertyId: req.staff!.propertyId },
+      caseId: id,
+      ...body,
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.json({ actions: result.actions });
+  })
+);
+
+apiRouter.patch(
+  "/complaints/:id",
+  asyncRoute(async (req, res) => {
+    const { id } = IdParam.parse(req.params);
+    const body = z
+      .object({
+        status: z.enum(CASE_STATUSES).optional(),
+        actions: z
+          .array(z.object({ action: z.string(), owner: z.string(), dueAt: z.string(), done: z.boolean() }))
+          .max(20)
+          .optional(),
+        preventive: z.string().max(600).optional(),
+        ownerId: z.string().uuid().optional(),
+        resolutionNote: z.string().max(1000).optional(),
+      })
+      .parse(req.body);
+    // Closing a case is a manager act; everything else is investigation.
+    const needed = body.status === "resolved" ? "complaints.resolve" : "complaints.investigate";
+    if (!can(req.staff!.role, needed)) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const result = await updateCase({
+      actor: { staffId: req.staff!.staffId, name: req.staff!.name, propertyId: req.staff!.propertyId },
+      caseId: id,
       ...body,
     });
     if (!result.ok) {

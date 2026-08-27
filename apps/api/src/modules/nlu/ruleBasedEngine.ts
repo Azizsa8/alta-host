@@ -43,7 +43,13 @@ function detectMaintenanceIssue(text: string): ExtractedIntent | null {
 }
 
 function detectComplaint(text: string): ExtractedIntent | null {
-  const mentions = /(complain|unhappy|disappointed|terrible|awful|مستاء|شكوى|سيء|أزعجني)/i.test(text);
+  // Arabic negativity carries gender and hamza variants: matching only
+  // "سيء" missed "سيئة"/"سيئه", which is how guests actually write it, and
+  // a missed complaint means the reputation case is never opened at all.
+  const mentions =
+    /(complain|unhappy|disappointed|terrible|awful|rude|dirty|مستاء|شكوى|سيئ|سيء|وسخ|متسخ|قذر|أزعجني|مزعج|غير محترم|زعلان|أسوأ)/i.test(
+      text
+    );
   if (!mentions) return null;
   return { type: "guest_service.complaint", params: { description: text }, confidence: 0.75 };
 }

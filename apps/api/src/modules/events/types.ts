@@ -26,7 +26,11 @@ export type AltaEventBody =
   | { type: "review.replied"; reviewId: string; stars: number }
   | { type: "content.status"; contentId: string; channel: string; status: string }
   | { type: "content.published"; contentId: string; channel: string; resultUrl: string }
-  | { type: "content.failed"; contentId: string; channel: string; error: string };
+  | { type: "content.failed"; contentId: string; channel: string; error: string }
+  | { type: "social.stats"; channel: string; followers: number; reach30d: number }
+  | { type: "complaint.captured"; caseId: string; category: string; severity: string; reputationRisk: number }
+  | { type: "complaint.reputation_risk"; caseId: string; reputationRisk: number; signals: string[]; preview: string }
+  | { type: "complaint.status"; caseId: string; status: string };
 
 export type AltaEventType = AltaEventBody["type"];
 

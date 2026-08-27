@@ -13,12 +13,19 @@ const ALLOWED_ACTIONS: Record<string, readonly string[]> = {
   housekeeping: ["no_action", "create_ticket"],
   maintenance: ["no_action", "create_ticket"],
   concierge_supervisor: ["no_action"],
+  // The social manager may draft and schedule; publishing is a separate
+  // gated call (content.publish), so it is deliberately absent here.
+  social_media: ["no_action", "draft_content", "schedule_content"],
+  // The complaint manager may open a case and plan actions. It may NOT
+  // offer money or a refund to placate a guest — §7's financial line
+  // applies hardest exactly where the temptation is greatest.
+  complaint_manager: ["no_action", "open_case", "plan_actions", "log_complaint"],
 };
 
 /** Actions that mutate money or bookings — these may ONLY run on the
  *  review-approved path, never auto-approved (§7: "لا تعويض مالي، لا
  *  تعديل حجز دون بوابة"). */
-const REVIEW_GATED_ACTIONS = new Set(["extend_checkout"]);
+const REVIEW_GATED_ACTIONS = new Set(["extend_checkout", "schedule_content"]);
 
 export class ForbiddenAgentActionError extends Error {
   constructor(agentKey: string, action: string, reason: string) {

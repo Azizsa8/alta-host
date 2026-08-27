@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ألتا هوست</title>
+<meta name="description" content="منصة ألتا هوست — فريق تشغيل فندقي كامل يعمل داخل واتساب.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;600;700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --ground:#0E0B14; --surface:#171221; --surface-2:#1F1830; --line:#312545;
+  --ink:#F3EFF7; --muted:#9A8FA8; --magenta:#E4177E; --magenta-soft:#FF5BA3;
+  --brass:#C9A227; --good:#3FBF8F;
+  --display:"Readex Pro","Tajawal",system-ui,sans-serif;
+  --body:"IBM Plex Sans Arabic","Readex Pro",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+html{
+  scroll-snap-type:y mandatory;
+  scroll-behavior:smooth;
+  overflow-y:scroll;
+  scrollbar-width:none;
+}
+html::-webkit-scrollbar{display:none}
+body{
+  background:var(--ground);color:var(--ink);font-family:var(--body);
+  line-height:1.7;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+::selection{background:var(--magenta);color:#fff}
+
+/* ── slide shell ── */
+.slide{
+  min-height:100svh;scroll-snap-align:start;scroll-snap-stop:always;
+  display:flex;flex-direction:column;justify-content:center;
+  padding:clamp(48px,7vh,90px) clamp(22px,6vw,90px) clamp(70px,9vh,110px);
+  position:relative;overflow:hidden;
+}
+.inner{width:100%;max-width:1180px;margin-inline:auto}
+
+.eyebrow{
+  font-family:var(--mono);font-size:clamp(9px,1vw,11px);letter-spacing:.24em;text-transform:uppercase;
+  color:var(--brass);display:flex;align-items:center;gap:10px;margin-bottom:14px;
+}
+.eyebrow::before{content:"";width:26px;height:1px;background:var(--brass);opacity:.55}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(34px,6.4vw,80px);line-height:1.08;text-wrap:balance;letter-spacing:-.015em}
+h2{font-family:var(--display);font-weight:600;font-size:clamp(24px,3.9vw,46px);line-height:1.2;text-wrap:balance;margin-bottom:10px}
+h3{font-family:var(--display);font-weight:600;font-size:clamp(14px,1.35vw,17px);line-height:1.35}
+.lede{font-size:clamp(13.5px,1.45vw,18px);color:var(--muted);max-width:64ch;font-weight:300}
+
+/* ── slide reveal choreography ── */
+.slide .anim{opacity:0;transform:translateY(30px);transition:opacity .75s cubic-bezier(.2,.85,.25,1),transform .75s cubic-bezier(.2,.85,.25,1)}
+.slide.live .anim{opacity:1;transform:none}
+.slide.live .anim:nth-child(1){transition-delay:.05s}
+.slide.live .anim:nth-child(2){transition-delay:.13s}
+.slide.live .anim:nth-child(3){transition-delay:.21s}
+.slide.live .anim:nth-child(4){transition-delay:.29s}
+.slide .stagger>*{opacity:0;transform:translateY(24px) scale(.985);transition:opacity .6s cubic-bezier(.2,.85,.25,1),transform .6s cubic-bezier(.2,.85,.25,1)}
+.slide.live .stagger>*{opacity:1;transform:none}
+.slide.live .stagger>*:nth-child(1){transition-delay:.22s}
+.slide.live .stagger>*:nth-child(2){transition-delay:.30s}
+.slide.live .stagger>*:nth-child(3){transition-delay:.38s}
+.slide.live .stagger>*:nth-child(4){transition-delay:.46s}
+.slide.live .stagger>*:nth-child(5){transition-delay:.54s}
+.slide.live .stagger>*:nth-child(6){transition-delay:.62s}
+.slide.live .stagger>*:nth-child(7){transition-delay:.70s}
+.slide.live .stagger>*:nth-child(8){transition-delay:.78s}
+.slide.live .stagger>*:nth-child(n+9){transition-delay:.86s}
+
+/* ── chrome: progress, counter, rail, hint ── */
+.progress{position:fixed;inset-block-start:0;inset-inline:0;height:2px;background:transparent;z-index:80}
+.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--magenta),var(--brass));transition:width .35s ease-out}
+.counter{
+  position:fixed;inset-block-end:22px;inset-inline-start:26px;z-index:80;
+  font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.14em;font-variant-numeric:tabular-nums;
+}
+.counter b{color:var(--ink);font-weight:600}
+.rail{position:fixed;inset-inline-end:22px;top:50%;transform:translateY(-50%);z-index:80;display:flex;flex-direction:column;gap:11px}
+.rail button{
+  width:8px;height:8px;padding:0;border:none;border-radius:50%;background:var(--line);cursor:pointer;
+  transition:transform .35s cubic-bezier(.2,.8,.2,1),background .35s;
+}
+.rail button[aria-current="true"]{background:var(--magenta);transform:scale(1.7)}
+.rail button:focus-visible{outline:2px solid var(--magenta-soft);outline-offset:4px}
+.hint{
+  position:fixed;inset-block-end:20px;inset-inline-end:26px;z-index:80;
+  font-family:var(--mono);font-size:10.5px;color:var(--muted);letter-spacing:.1em;
+  display:flex;align-items:center;gap:8px;transition:opacity .5s;
+}
+.hint.gone{opacity:0;pointer-events:none}
+.hint span{display:inline-block;animation:nudge 1.9s ease-in-out infinite}
+@keyframes nudge{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}
+
+/* ── hero ── */
+.glow{position:absolute;inset-inline-end:-18%;top:-14%;width:62vw;height:62vw;pointer-events:none;
+  background:radial-gradient(circle,rgba(228,23,126,.20),transparent 62%);filter:blur(34px)}
+.wordmark{font-family:var(--display);font-weight:300;font-size:12px;letter-spacing:.55em;color:var(--muted)}
+h1 .hl{color:var(--magenta)}
+.stats{display:flex;flex-wrap:wrap;gap:clamp(18px,3.4vw,52px);border-top:1px solid var(--line);padding-top:20px;margin-top:6px}
+.stat b{display:block;font-family:var(--mono);font-size:clamp(21px,3vw,38px);font-weight:600;font-variant-numeric:tabular-nums;line-height:1.15}
+.stat span{font-size:clamp(10.5px,1vw,12.5px);color:var(--muted)}
+
+/* ── pipeline ── */
+.pipe{position:relative;display:grid;grid-template-columns:repeat(5,1fr);gap:9px;
+  background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:20px 16px;overflow:hidden}
+.pipe::before{content:"";position:absolute;inset-inline:16px;top:50%;height:1px;background:var(--line)}
+.node{position:relative;text-align:center;padding:12px 5px;background:var(--surface-2);border:1px solid var(--line);border-radius:3px;z-index:1}
+.node b{display:block;font-family:var(--display);font-size:clamp(11px,1.15vw,13.5px);font-weight:600}
+.node span{font-size:clamp(8.5px,.85vw,10.5px);color:var(--muted);font-family:var(--mono)}
+.node.gate{border-color:var(--brass)}.node.gate b{color:var(--brass)}
+.spark{position:absolute;top:50%;inset-inline-end:16px;width:9px;height:9px;border-radius:50%;
+  background:var(--magenta);box-shadow:0 0 14px 3px rgba(228,23,126,.65);transform:translateY(-50%);z-index:2}
+.slide.live .spark{animation:travel 7s cubic-bezier(.5,0,.5,1) infinite}
+@keyframes travel{
+  0%{inset-inline-end:16px;opacity:0}6%{opacity:1}
+  28%{inset-inline-end:38%}
+  40%{inset-inline-end:50%;background:var(--brass);box-shadow:0 0 14px 3px rgba(201,162,39,.7)}
+  58%{inset-inline-end:50%;background:var(--brass);box-shadow:0 0 22px 6px rgba(201,162,39,.95)}
+  70%{inset-inline-end:62%;background:var(--magenta);box-shadow:0 0 14px 3px rgba(228,23,126,.65)}
+  94%{inset-inline-end:calc(100% - 28px);opacity:1}
+  100%{inset-inline-end:calc(100% - 28px);opacity:0}
+}
+.note{font-size:clamp(10.5px,1vw,12px);color:var(--muted);margin-top:11px;font-family:var(--mono)}
+
+/* ── grids & cards ── */
+.grid{display:grid;gap:12px;margin-top:22px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(270px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(215px,1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(168px,1fr))}
+.g5{grid-template-columns:repeat(auto-fit,minmax(148px,1fr))}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:clamp(13px,1.5vw,19px);
+  transition:border-color .3s,transform .3s}
+.card:hover{border-color:var(--magenta);transform:translateY(-3px)}
+.card p{font-size:clamp(11px,1.05vw,13px);color:var(--muted);margin-top:6px;line-height:1.6}
+.tag{font-family:var(--mono);font-size:9.5px;color:var(--brass);letter-spacing:.13em;text-transform:uppercase}
+
+/* ── agents ── */
+.tier-label{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;
+  margin:18px 0 9px;display:flex;align-items:center;gap:10px}
+.tier-label::after{content:"";flex:1;height:1px;background:var(--line)}
+.agent{background:var(--surface);border:1px solid var(--line);border-inline-start:2px solid var(--magenta);
+  border-radius:3px;padding:clamp(12px,1.4vw,17px)}
+.agent.sub{border-inline-start-color:var(--line);background:transparent}
+.agent.orch{border-inline-start-color:var(--brass)}
+.agent p{font-size:clamp(10.5px,1vw,12.5px);color:var(--muted);margin-top:5px;line-height:1.55}
+.intents{font-family:var(--mono);font-size:9.5px;color:var(--magenta-soft);margin-top:7px;word-break:break-all}
+.badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:99px;margin-top:7px}
+.badge.human{background:rgba(201,162,39,.14);color:var(--brass);border:1px solid rgba(201,162,39,.38)}
+.badge.auto{background:rgba(63,191,143,.12);color:var(--good);border:1px solid rgba(63,191,143,.33)}
+
+/* ── load bars ── */
+.load{display:flex;flex-direction:column;gap:13px;margin-top:24px}
+.load-row{display:grid;grid-template-columns:minmax(130px,1fr) 3fr;gap:16px;align-items:center}
+.load-row .t{font-size:clamp(11.5px,1.1vw,14px)}
+.load-row .t small{display:block;color:var(--muted);font-size:10px;font-family:var(--mono)}
+.bar{height:24px;background:var(--surface-2);border:1px solid var(--line);border-radius:2px;position:relative;overflow:hidden}
+.bar i{position:absolute;inset-block:0;inset-inline-start:0;width:0;
+  background:linear-gradient(90deg,rgba(228,23,126,.85),rgba(255,91,163,.45));transition:width 1.25s cubic-bezier(.2,.8,.2,1) .3s}
+.bar em{position:absolute;inset-inline-end:9px;top:50%;transform:translateY(-50%);font-style:normal;
+  font-family:var(--body);font-size:clamp(10px,.95vw,11.5px);color:var(--ink)}
+
+/* ── table ── */
+.tw{overflow:auto;margin-top:20px;border:1px solid var(--line);border-radius:4px;max-height:62vh}
+table{width:100%;border-collapse:collapse;font-size:clamp(11px,1.05vw,13px);min-width:560px}
+th,td{padding:10px 14px;text-align:start;border-bottom:1px solid var(--line)}
+th{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
+  font-weight:400;background:var(--surface);position:sticky;top:0}
+tr:last-child td{border-bottom:none}
+.ok{color:var(--good);font-family:var(--mono);font-size:11px}
+
+/* ── close ── */
+.kicker{font-family:var(--display);font-weight:300;font-size:clamp(21px,3.6vw,42px);line-height:1.4;max-width:20ch;text-wrap:balance}
+.kicker b{font-weight:600;color:var(--magenta)}
+.foot{display:flex;flex-wrap:wrap;gap:12px 36px;margin-top:26px;font-size:clamp(11px,1.05vw,13px);color:var(--muted)}
+.foot code{font-family:var(--mono);color:var(--ink)}
+
+@media (max-width:780px){
+  .rail{display:none}
+  .pipe{grid-template-columns:1fr 1fr}
+  .pipe::before,.spark{display:none}
+  .load-row{grid-template-columns:1fr;gap:6px}
+  .slide{justify-content:flex-start;padding-top:64px}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto;scroll-snap-type:none}
+  *{animation:none!important;transition-duration:.01ms!important}
+  .slide .anim,.slide .stagger>*{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div class="progress" aria-hidden="true"><i id="prog"></i></div>
+<div class="counter"><b id="cur">01</b> / <span id="tot">14</span></div>
+<nav class="rail" id="rail" aria-label="التنقل بين الشرائح"></nav>
+<div class="hint" id="hint"><span>↓</span> مرّر للشريحة التالية</div>
+
+<!-- 01 ── HERO -->
+<section class="slide" data-t="الافتتاحية">
+  <div class="glow" aria-hidden="true"></div>
+  <div class="inner">
+    <p class="wordmark anim">ALTA HOST</p>
+    <h1 class="anim" style="margin-top:20px">فريق تشغيل كامل<br>يعمل داخل <span class="hl">واتساب</span></h1>
+    <p class="lede anim" style="margin-top:20px">النزيل يكتب رسالة واحدة. تسعة وكلاء يقرؤونها، يوزّعونها، ينفّذون ما يجوز تنفيذه تلقائيًا، ويتوقفون عند حدود القرار البشري — وكل خطوة مسجّلة باسم فاعلها ووقتها.</p>
+    <div class="stats anim">
+      <div class="stat"><b data-count="9">0</b><span>وكيل ووكيل فرعي</span></div>
+      <div class="stat"><b data-count="15">0</b><span>شاشة تشغيلية</span></div>
+      <div class="stat"><b data-count="7">0</b><span>أدوار بصلاحيات مستقلة</span></div>
+      <div class="stat"><b data-count="178">0</b><span>اختبار آلي يمر</span></div>
+      <div class="stat"><b data-count="27">0</b><span>رسالة/ثانية مُقاسة</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 02 ── PROBLEM -->
+<section class="slide" data-t="العبء">
+  <div class="inner">
+    <p class="eyebrow anim">الواقع التشغيلي</p>
+    <h2 class="anim">الفندق لا ينقصه موظفون — ينقصه وسيط</h2>
+    <p class="lede anim">الاستقبال يجيب على نفس عشرة أسئلة كل يوم. البلاغ يمرّ شفهيًا فيضيع. المدير يعرف بالشكوى بعد أن تصبح تقييمًا بنجمة واحدة.</p>
+    <div class="grid g3 stagger">
+      <div class="card"><span class="tag">اليوم</span><h3>سؤال متكرر</h3><p>موظف الاستقبال يجيب يدويًا على «متى الفطور؟» عشرات المرات يوميًا — وقت لا يُسترد.</p></div>
+      <div class="card"><span class="tag">اليوم</span><h3>بلاغ شفهي</h3><p>«المكيف خربان» تُقال في الممر ولا تصل الصيانة. لا تذكرة، لا مهلة، لا مسؤول.</p></div>
+      <div class="card"><span class="tag">اليوم</span><h3>شكوى صامتة</h3><p>النزيل لا يشتكي في الاستقبال — يشتكي على Google بعد المغادرة، حين لا يمكن إصلاح شيء.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 03 ── PIPELINE -->
+<section class="slide" data-t="المسار">
+  <div class="inner">
+    <p class="eyebrow anim">مسار الرسالة</p>
+    <h2 class="anim">من رسالة النزيل إلى فعل مُنفّذ — في أقل من ثلاث ثوانٍ</h2>
+    <p class="lede anim">النقطة أدناه رسالة تعبر النظام. لاحظ توقّفها عند البوابة الذهبية: هناك ينتظر الرد الحسّاس قرار إنسان.</p>
+    <div class="anim" style="margin-top:26px">
+      <div class="pipe">
+        <div class="spark" aria-hidden="true"></div>
+        <div class="node"><b>واتساب</b><span>webhook</span></div>
+        <div class="node"><b>الطابور</b><span>BullMQ</span></div>
+        <div class="node"><b>فهم النية</b><span>NLU</span></div>
+        <div class="node gate"><b>البوابة البشرية</b><span>review</span></div>
+        <div class="node"><b>تنفيذ + رد</b><span>PMS · ticket</span></div>
+      </div>
+      <p class="note">الحفظ أولًا ثم المعالجة — لا رسالة تضيع حتى لو سقطت الخدمة لحظة الاستلام.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 04 ── UNDERSTANDING -->
+<section class="slide" data-t="الفهم">
+  <div class="inner">
+    <p class="eyebrow anim">الفهم</p>
+    <h2 class="anim">يقرأ كما يقرأ موظف مخضرم</h2>
+    <div class="grid g4 stagger">
+      <div class="card"><h3>يفهم اللهجة</h3><p>يستخرج النية والمشاعر ودرجة الإلحاح من العربية السعودية المحكية ومن الإنجليزية.</p></div>
+      <div class="card"><h3>يسمع الصوت</h3><p>الرسائل الصوتية تُفرَّغ نصًا وتدخل المسار نفسه — النزيل لا يُطالَب بالكتابة.</p></div>
+      <div class="card"><h3>رسالة، عدة نوايا</h3><p>«المكيف خربان وأبي تمديد» تتفرّع لوكيلين: تذكرة فورية، وطلب ينتظر المراجعة.</p></div>
+      <div class="card"><h3>يرد بلغة النزيل</h3><p>من كتب بالعربية يُجاب بالعربية، ومن كتب بالإنجليزية يُجاب بها — تلقائيًا.</p></div>
+      <div class="card"><h3>لا يخترع سياسة</h3><p>يجيب من المعرفة التي اعتمدها المدير فقط. لا إجابة معتمدة؟ إحالة صادقة لموظف.</p></div>
+      <div class="card"><h3>لا يترك رسالة بلا رد</h3><p>حتى حين ينتظر الرد قرار إنسان، يصل النزيل إشعار استلام فورًا — الصمت ليس سياسة.</p></div>
+      <div class="card"><h3>يعرف العاجل</h3><p>درجة الإلحاح تُستخرج من النص نفسه وتقصّر مهلة الاستجابة تلقائيًا.</p></div>
+      <div class="card"><h3>يتذكّر النزيل</h3><p>ملف موحّد: الحجز والمحادثة والطلبات السابقة في مكان واحد.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 05 ── AGENTS I -->
+<section class="slide" data-t="الوكلاء">
+  <div class="inner">
+    <p class="eyebrow anim">فريق الوكلاء · المستوى صفر والأول</p>
+    <h2 class="anim">منسّق واحد وأربعة وكلاء أقسام</h2>
+    <div class="anim">
+      <p class="tier-label">التوزيع</p>
+      <div class="agent orch">
+        <h3>المنسّق الرئيسي</h3>
+        <p>يستخرج النوايا من كل رسالة ويوزّعها على الوكلاء المختصين — رسالة واحدة قد تتفرّع لعدة وكلاء يعملون بالتوازي.</p>
+      </div>
+    </div>
+    <div class="stagger">
+      <p class="tier-label" style="opacity:1">وكلاء الأقسام</p>
+    </div>
+    <div class="grid g2 stagger" style="margin-top:8px">
+      <div class="agent"><h3>وكيل الاستقبال</h3><p>تمديد الخروج وتعديل الحجوزات على نظام الفندق مباشرة، والإجابة من المعرفة المعتمدة.</p><div class="intents">booking.extend_stay · reception.faq</div><span class="badge human">مراجعة بشرية قبل الإرسال</span></div>
+      <div class="agent"><h3>وكيل خدمة النزلاء</h3><p>الشكاوى والطلبات العامة؛ يرصد المشاعر ودرجة الإلحاح ويصعّد الحرج فورًا.</p><div class="intents">guest_service.complaint</div><span class="badge human">مراجعة بشرية قبل الإرسال</span></div>
+      <div class="agent"><h3>وكيل التدبير المنزلي</h3><p>طلبات التنظيف: ينشئ التذكرة ويؤكد للنزيل فورًا — منخفض الخطورة فلا ينتظر أحدًا.</p><div class="intents">housekeeping.clean_room</div><span class="badge auto">تنفيذ فوري</span></div>
+      <div class="agent"><h3>وكيل الصيانة</h3><p>بلاغات الأعطال: تذكرة فورية بمهلة محسوبة، والعاجل يُصعَّد تلقائيًا.</p><div class="intents">maintenance.report_issue</div><span class="badge auto">تنفيذ فوري</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 06 ── AGENTS II -->
+<section class="slide" data-t="الوكلاء الفرعيون">
+  <div class="inner">
+    <p class="eyebrow anim">فريق الوكلاء · المستوى الثاني</p>
+    <h2 class="anim">أربعة وكلاء فرعيين يفحصون قبل التنفيذ</h2>
+    <p class="lede anim">كل فحص يُسجَّل ويظهر في مركز العمليات — «لماذا رُفض الطلب؟» سؤال له إجابة، لا تخمين.</p>
+    <div class="grid g4 stagger">
+      <div class="agent sub"><h3>التحقق من الحجز</h3><p>يتأكد من وجود حجز فعّال قبل أي تمديد، ويوقف الطلب إذا لم يوجد.</p></div>
+      <div class="agent sub"><h3>التحقق من الدفع</h3><p>التمديد مدفوع، فوجود وسيلة دفع سارية شرط — يوقف الطلب عند غيابها.</p></div>
+      <div class="agent sub"><h3>البحث في المعرفة</h3><p>يبحث في العناصر المعتمدة فقط، ويُظهر أي عنصر أجاب على السؤال.</p></div>
+      <div class="agent sub"><h3>توجيه المناوبات</h3><p>يجد موظفًا على رأس العمل لاستلام التذكرة، ويبلّغ صراحةً عند عدم توفر أحد.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 07 ── LOAD -->
+<section class="slide" data-t="تخفيف الحمل">
+  <div class="inner">
+    <p class="eyebrow anim">تخفيف الحمل</p>
+    <h2 class="anim">أين ينخفض العبء فعليًا</h2>
+    <p class="lede anim">المنصة لا تدّعي أرقامًا — تقيسها من بيانات فندقك نفسه.</p>
+    <div class="load anim">
+      <div class="load-row"><div class="t">الأسئلة المتكررة<small>reception.faq</small></div><div class="bar"><i data-w="92"></i><em>يجيب الوكيل من المعرفة المعتمدة</em></div></div>
+      <div class="load-row"><div class="t">طلبات التنظيف<small>housekeeping</small></div><div class="bar"><i data-w="88"></i><em>تذكرة + إسناد + تأكيد بلا تدخل</em></div></div>
+      <div class="load-row"><div class="t">بلاغات الأعطال<small>maintenance</small></div><div class="bar"><i data-w="85"></i><em>تذكرة بمهلة + تصعيد تلقائي</em></div></div>
+      <div class="load-row"><div class="t">الردود الحسّاسة<small>booking · complaints</small></div><div class="bar"><i data-w="35"></i><em>مسودة جاهزة — القرار يبقى بشريًا</em></div></div>
+      <div class="load-row"><div class="t">الرد على التقييمات<small>Google</small></div><div class="bar"><i data-w="40"></i><em>تصنيف + مسودة — النشر باعتمادك</em></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 08 ── KPIs -->
+<section class="slide" data-t="القياس">
+  <div class="inner">
+    <p class="eyebrow anim">القياس الأسبوعي</p>
+    <h2 class="anim">مؤشرات محسوبة، لا مُعلَنة</h2>
+    <p class="lede anim">التقرير التنفيذي يحسب هذه المؤشرات من طوابع زمنية حقيقية ونتائج تشغيل فعلية — والفندق بلا حركة يعرض «لا بيانات بعد» لا صفرًا مضلّلًا.</p>
+    <div class="grid g4 stagger">
+      <div class="card"><span class="tag">يُقاس</span><h3>زمن أول رد</h3><p>وسيط الزمن بين رسالة النزيل وأول رد. الوسيط لا المتوسط، حتى لا تُخفي محادثة ليلية أسبوعًا سريعًا.</p></div>
+      <div class="card"><span class="tag">يُقاس</span><h3>نسبة الحل الآلي</h3><p>ما أنهاه النظام دون تدخل بشري. المُعطَّل والمُحال يُحتسبان بشريين بأمانة.</p></div>
+      <div class="card"><span class="tag">يُقاس</span><h3>رضا النزلاء</h3><p>متوسط نجوم Google ونسبة الرسائل الإيجابية جنبًا إلى جنب.</p></div>
+      <div class="card"><span class="tag">يُقاس</span><h3>الالتزام بالمهل</h3><p>نسبة التذاكر المنجزة داخل مهلتها — والتصعيد يقع مرة واحدة بالضبط لكل تجاوز.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 09 ── SCREENS I -->
+<section class="slide" data-t="الشاشات ١">
+  <div class="inner">
+    <p class="eyebrow anim">الشاشات · التشغيل اليومي</p>
+    <h2 class="anim">لكل دور ما يخصّه، لا شاشة مزدحمة للجميع</h2>
+    <div class="grid g4 stagger">
+      <div class="card"><h3>مركز العمليات</h3><p>خريطة حيّة للوكلاء تضيء لحظة عمل كل واحد — مصدرها سجل النظام لا محاكاة.</p></div>
+      <div class="card"><h3>صندوق رسائل النزلاء</h3><p>كل المحادثات، حالة الذكاء لكل واحدة، واستلام فوري بزر واحد.</p></div>
+      <div class="card"><h3>قائمة المراجعة</h3><p>كل رد حسّاس ينتظر هنا: اعتمد، عدّل، أو ارفض — قبل أن يصل النزيل.</p></div>
+      <div class="card"><h3>لوحة التذاكر</h3><p>التذاكر بمهلها وحالة التصعيد، مرتبة بما يوشك أن يتجاوز.</p></div>
+      <div class="card"><h3>أوامر العمل</h3><p>إسناد، قوائم فحص، صور قبل/بعد، وإغلاق حرج بتأكيد المدير.</p></div>
+      <div class="card"><h3>شاشة الفني (جوال)</h3><p>أوامره هو فقط، تحديث الحالة، وكاميرا الجوال كدليل ميداني.</p></div>
+      <div class="card"><h3>ملفات النزلاء</h3><p>سجل موحّد لكل نزيل: حجزه ومحادثته وطلباته في مكان واحد.</p></div>
+      <div class="card"><h3>المحاكي</h3><p>جرّب أي رسالة نزيل عبر المسار الكامل دون هاتف — للتدريب والاختبار.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 ── SCREENS II -->
+<section class="slide" data-t="الشاشات ٢">
+  <div class="inner">
+    <p class="eyebrow anim">الشاشات · الإدارة والنمو</p>
+    <h2 class="anim">من قرار المدير إلى سمعة الفندق</h2>
+    <div class="grid g4 stagger">
+      <div class="card"><h3>مركز الوكلاء</h3><p>تشغيل وإيقاف كل وكيل، المعرفة المعتمدة، وسجل تشغيل يوضح ما فعله ولماذا.</p></div>
+      <div class="card"><h3>السمعة الرقمية</h3><p>تقييمات Google مصنّفة، مسودة رد لكل تقييم، وتنبيه أحمر لما يمسّ السلامة.</p></div>
+      <div class="card"><h3>استوديو المحتوى</h3><p>هوية العلامة، أفكار مبنية على عروضك، مسودات، جدولة، ونشر باعتمادك.</p></div>
+      <div class="card"><h3>الملفات والتخزين</h3><p>عداد حصة دقيق، رفع مباشر من المتصفح، وسلة محذوفات ثلاثين يومًا.</p></div>
+      <div class="card"><h3>التقرير التنفيذي</h3><p>مؤشرات الأداء وتوصيات مكتوبة بلغة قابلة للتنفيذ، لا أرقام صامتة.</p></div>
+      <div class="card"><h3>سجل التدقيق</h3><p>سلسلة مقاومة للعبث: من فعل ماذا ومتى — وأي تعديل خفي يكسرها.</p></div>
+      <div class="card"><h3>بيانات الاعتماد</h3><p>مفاتيح الأنظمة المرتبطة مشفّرة، تُحفظ ولا تُعرض بعدها أبدًا.</p></div>
+      <div class="card"><h3>إدارة المنصة</h3><p>إضافة فندق كامل بنموذج واحد، الباقات والحصص، والإيقاف الفوري.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 ── CAPABILITIES -->
+<section class="slide" data-t="القدرات">
+  <div class="inner">
+    <p class="eyebrow anim">القدرات</p>
+    <h2 class="anim">ما الذي يفعله النظام فعلًا</h2>
+    <div class="tw anim">
+      <table>
+        <thead><tr><th>المجال</th><th>القدرة</th><th>الحالة</th></tr></thead>
+        <tbody>
+          <tr><td><b>القنوات</b></td><td>واتساب رسميًا أو جسر محلي للتجارب · Google Business Profile · إنستغرام وفيسبوك وتيك توك</td><td class="ok">مبني</td></tr>
+          <tr><td><b>الفهم</b></td><td>النية والمشاعر والإلحاح واللهجة — ونية متعددة في الرسالة الواحدة، والصوت نصًا</td><td class="ok">مبني</td></tr>
+          <tr><td><b>المعرفة</b></td><td>مسودة ← معتمد ← متقاعد؛ الوكلاء يجيبون من المعتمد فقط</td><td class="ok">مبني</td></tr>
+          <tr><td><b>التذاكر</b></td><td>مهلة لكل قسم ودرجة إلحاح، وتصعيد يقع مرة واحدة بالضبط</td><td class="ok">مبني</td></tr>
+          <tr><td><b>أوامر العمل</b></td><td>إسناد، قوائم فحص، صور ميدانية، وإغلاق حرج بتأكيد مدير الصيانة</td><td class="ok">مبني</td></tr>
+          <tr><td><b>الاستلام البشري</b></td><td>أي موظف يوقف الذكاء فورًا؛ الإرجاع قرار مدير — بحماية مزدوجة ضد السباق الزمني</td><td class="ok">مبني</td></tr>
+          <tr><td><b>التخزين</b></td><td>رفع مباشر بروابط موقّتة، حصة دقيقة، تنبيه ٨٠٪، ومنع عند الامتلاء</td><td class="ok">مبني</td></tr>
+          <tr><td><b>السمعة</b></td><td>سحب التقييمات وتصنيفها ومسودة رد بلغة التقييم، ونشر بموافقة بشرية فقط</td><td class="ok">مبني</td></tr>
+          <tr><td><b>المحتوى</b></td><td>هوية ← أفكار ← مسودات ← اعتماد ← جدولة ← نشر مع رابط النتيجة</td><td class="ok">مبني</td></tr>
+          <tr><td><b>التقارير</b></td><td>مؤشرات محسوبة من بيانات فعلية، وتوصيات مكتوبة</td><td class="ok">مبني</td></tr>
+          <tr><td><b>الحوكمة</b></td><td>سبعة أدوار، سجل تدقيق بسلسلة تجزئة، خزنة أسرار مشفّرة، عزل كامل بين الفنادق</td><td class="ok">مبني</td></tr>
+          <tr><td><b>التكامل</b></td><td>واجهة PMS قابلة للتبديل · توثيق API كامل محروس ضد الانحراف</td><td class="ok">مبني</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 12 ── GOVERNANCE -->
+<section class="slide" data-t="الحوكمة">
+  <div class="inner">
+    <p class="eyebrow anim">الحوكمة</p>
+    <h2 class="anim">الخطوط الحمراء مكتوبة بالكود لا بالتعليمات</h2>
+    <p class="lede anim">في معظم أنظمة الذكاء الاصطناعي «الوكيل ممنوع من كذا» جملة في وثيقة. هنا هي دالة ترفض التنفيذ.</p>
+    <div class="grid g2 stagger">
+      <div class="card"><span class="tag">الممنوعات</span><h3>لا تعويض مالي · لا تعديل حجز دون بوابة</h3><p>لكل وكيل قائمة أفعال مسموحة. التعويض المالي والاطلاع على بيانات نزيل آخر غير موجودَين في أي قائمة — فلا يمكن تمثيلهما أصلًا. وتعديل الحجز يُرفض خارج بوابة المراجعة حتى لو فُعِّل الاعتماد التلقائي.</p></div>
+      <div class="card"><span class="tag">عزل المستأجرين</span><h3>فندق لا يرى فندقًا</h3><p>الهوية تُقرأ من رمز الدخول لا من الرابط، وقاعدة البيانات نفسها تختم كل صف بمالكه. محاولة الوصول لبيانات فندق آخر ترجع رفضًا لا بيانات.</p></div>
+      <div class="card"><span class="tag">سجل التدقيق</span><h3>سلسلة تكشف العبث</h3><p>كل سجل مرتبط تشفيريًا بسابقه. حذف أو تعديل سجل واحد يكسر السلسلة ويظهر فورًا عند التحقق — وهذا ما يبحث عنه المدقق.</p></div>
+      <div class="card"><span class="tag">الأسرار</span><h3>خزنة لا تُقرأ</h3><p>مفاتيح الأنظمة المرتبطة مشفّرة بمعيار AES-256-GCM ولا تُعرض بعد حفظها أبدًا — ولا حتى لمن حفظها. كل قراءة داخلية مسجّلة.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 13 ── PROOF -->
+<section class="slide" data-t="الإثبات">
+  <div class="inner">
+    <p class="eyebrow anim">الإثبات</p>
+    <h2 class="anim">مقاس، لا موصوف</h2>
+    <p class="lede anim">كل رقم ناتج تشغيل حقيقي على قاعدة بيانات وطابور وتخزين حقيقيين — لا محاكاة ولا تقدير.</p>
+    <div class="stats anim" style="border-top:none;padding-top:0;margin-top:26px">
+      <div class="stat"><b data-count="178">0</b><span>اختبار آلي في كل تسليم</span></div>
+      <div class="stat"><b data-count="10">0</b><span>من ١٠ معايير قبول</span></div>
+      <div class="stat"><b data-count="27">0</b><span>رسالة/ثانية دون فقد</span></div>
+      <div class="stat"><b data-count="3">0</b><span>ثوانٍ حدًّا أقصى للمسار</span></div>
+      <div class="stat"><b data-count="47">0</b><span>واجهة API موثّقة</span></div>
+    </div>
+    <div class="grid g3 stagger" style="margin-top:28px">
+      <div class="card"><h3>لا رسالة تضيع</h3><p>تحت ضغط ٣٠٠ رسالة متزامنة: صفر فقد، صفر تكرار — تحقّق فعلي في قاعدة البيانات بعد التصريف.</p></div>
+      <div class="card"><h3>النسخ الاحتياطي مُجرَّب</h3><p>ليس موثّقًا فحسب: نُفِّذت بروفة استعادة كاملة وتطابقت أعداد الصفوف عبر سبعة جداول.</p></div>
+      <div class="card"><h3>الأمان مفحوص</h3><p>فحص أمني حيّ كشف ثغرة كشف بيانات فأُغلقت وثُبِّتت باختبار — النتيجة موثّقة لا مُدّعاة.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 14 ── CLOSE -->
+<section class="slide" data-t="الخلاصة">
+  <div class="glow" aria-hidden="true"></div>
+  <div class="inner">
+    <p class="eyebrow anim">الخلاصة</p>
+    <p class="kicker anim">الفنادق لا تشتري ذكاءً اصطناعيًا.<br>تشتري <b>ليلة هادئة</b> في الاستقبال.</p>
+    <div class="foot anim">
+      <div>منصة <code>ALTA HOST</code></div>
+      <div>واتساب أولًا · عربية أولًا · سعودية أولًا</div>
+      <div>جاهزة للتجربة التشغيلية</div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+  var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var slides = [].slice.call(document.querySelectorAll(".slide"));
+  var rail = document.getElementById("rail");
+  var cur = document.getElementById("cur"), tot = document.getElementById("tot");
+  var prog = document.getElementById("prog"), hint = document.getElementById("hint");
+  var active = 0;
+  tot.textContent = String(slides.length).padStart(2,"0");
+
+  slides.forEach(function(s,i){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("aria-label", s.dataset.t || ("شريحة " + (i+1)));
+    b.addEventListener("click", function(){ s.scrollIntoView({behavior: reduce ? "auto" : "smooth"}); });
+    rail.appendChild(b);
+  });
+  var dots = [].slice.call(rail.children);
+
+  function setActive(i){
+    if(i === active) return;
+    active = i;
+    cur.textContent = String(i+1).padStart(2,"0");
+    prog.style.width = ((i+1)/slides.length*100) + "%";
+    dots.forEach(function(d,j){ d.setAttribute("aria-current", j===i ? "true":"false"); });
+    if(i > 0) hint.classList.add("gone");
+  }
+
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      var i = slides.indexOf(e.target);
+      if(e.isIntersecting && e.intersectionRatio > .55){
+        e.target.classList.add("live");
+        setActive(i);
+        e.target.querySelectorAll("[data-count]").forEach(countUp);
+        e.target.querySelectorAll("[data-w]").forEach(function(b){
+          b.style.width = b.getAttribute("data-w") + "%";
+        });
+      }
+    });
+  },{threshold:[.55]});
+  slides.forEach(function(s){ io.observe(s); });
+
+  function countUp(el){
+    if(el.dataset.done) return;
+    el.dataset.done = "1";
+    var target = parseInt(el.getAttribute("data-count"),10);
+    if(reduce){ el.textContent = target; return; }
+    var start = performance.now(), dur = 1150;
+    (function tick(now){
+      var p = Math.min(1,(now-start)/dur);
+      el.textContent = Math.round(target * (1 - Math.pow(1-p,3)));
+      if(p<1) requestAnimationFrame(tick);
+    })(performance.now());
+  }
+
+  /* keyboard: arrows / page keys move one slide */
+  addEventListener("keydown", function(e){
+    var d = 0;
+    if(e.key === "ArrowDown" || e.key === "PageDown" || e.key === " ") d = 1;
+    if(e.key === "ArrowUp" || e.key === "PageUp") d = -1;
+    if(e.key === "Home") { slides[0].scrollIntoView(); e.preventDefault(); return; }
+    if(e.key === "End") { slides[slides.length-1].scrollIntoView(); e.preventDefault(); return; }
+    if(!d) return;
+    var next = Math.min(slides.length-1, Math.max(0, active + d));
+    slides[next].scrollIntoView({behavior: reduce ? "auto" : "smooth"});
+    e.preventDefault();
+  });
+
+  slides[0].classList.add("live");
+  setTimeout(function(){
+    slides[0].querySelectorAll("[data-count]").forEach(countUp);
+  }, 400);
+  prog.style.width = (1/slides.length*100) + "%";
+  dots[0].setAttribute("aria-current","true");
+})();
+</script>
+</body>
+</html>

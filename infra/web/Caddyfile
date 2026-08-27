@@ -20,6 +20,13 @@
 		reverse_proxy {$API_UPSTREAM:api:4317}
 	}
 
+	# Static client deck — served before the SPA fallback so its own
+	# index.html wins instead of being swallowed by try_files.
+	handle /deck* {
+		root * /srv
+		file_server
+	}
+
 	handle {
 		root * /srv
 		try_files {path} /index.html

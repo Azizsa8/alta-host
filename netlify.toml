@@ -1,0 +1,12 @@
+# Netlify publishes the investor/client deck only — the platform itself is
+# a Docker stack (see docker-compose.yml), not a static site.
+[build]
+  publish = "deck"
+  command = ""
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"

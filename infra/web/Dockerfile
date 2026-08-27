@@ -11,3 +11,6 @@ RUN npm run build --workspace apps/dashboard
 FROM caddy:2-alpine
 COPY infra/web/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /repo/apps/dashboard/dist /srv
+# The client deck ships with the same image so it is always reachable at
+# /deck on whatever domain the dashboard is on — no second host to keep alive.
+COPY deck /srv/deck

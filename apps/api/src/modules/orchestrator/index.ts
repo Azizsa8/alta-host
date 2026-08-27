@@ -1,7 +1,7 @@
 import { prisma } from "../../db.js";
 import { createIntentEngine } from "../nlu/index.js";
 import { createPMSAdapter } from "../pms/mockAdapter.js";
-import { proposeReceptionReply, executeReceptionAction } from "../agents/receptionAgent.js";
+import { proposeReceptionReply, executeReceptionAction, resolveGuestLanguage } from "../agents/receptionAgent.js";
 import { proposeGuestServiceReply, executeGuestServiceAction } from "../agents/guestServiceAgent.js";
 import { handleHousekeepingIntent } from "../agents/housekeepingAgent.js";
 import { queueForReview } from "../reviews/reviewService.js";
@@ -107,9 +107,21 @@ export async function processInboundMessage(params: {
   });
 
   if (envelope.intents.length === 0) {
+    // A guest who writes something we can't classify still deserves an
+    // answer in their own language — silence reads as "nobody is there".
+    const lang = await resolveGuestLanguage(params.guestId, params.text);
     return {
       intentEnvelope: envelope,
-      outcomes: [{ intentType: "none", status: "sent", reply: "Got it — thanks for the message. A team member will follow up if needed." }],
+      outcomes: [
+        {
+          intentType: "none",
+          status: "sent",
+          reply:
+            lang === "ar"
+              ? "وصلتنا رسالتك، وأحد أفراد الفريق يطّلع عليها ويردّ عليك بأقرب وقت. 🌟"
+              : "Thanks for your message — a team member is looking at it and will reply shortly.",
+        },
+      ],
     };
   }
 

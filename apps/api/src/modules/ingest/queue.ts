@@ -4,6 +4,7 @@ import { logger } from "../../logger.js";
 import { processInboundMessage, recordInboundOnly } from "../orchestrator/index.js";
 import { prisma } from "../../db.js";
 import { resolveConversation, sendWhatsAppMessage } from "../whatsapp/gateway.js";
+import { resolveGuestLanguage } from "../agents/receptionAgent.js";
 
 // Overridable so environments sharing one Redis (dev containers vs the
 // test suite vs a future staging) each get their own queue — otherwise a
@@ -90,10 +91,29 @@ export function startIngestWorker(): Worker<InboundJob> {
         select: { aiPaused: true },
       });
       if (fresh?.aiPaused) return;
+
+      let spokeToGuest = false;
       for (const outcome of result.outcomes) {
         if (outcome.status === "sent" && outcome.reply) {
           await sendWhatsAppMessage(conversation.id, outcome.reply);
+          spokeToGuest = true;
         }
+      }
+
+      // §7 holds the ANSWER for a human, but silence is not a policy: a
+      // guest who asks about breakfast and hears nothing assumes nobody is
+      // there. If every outcome was queued for review and nothing else went
+      // out, acknowledge receipt — no promise, no invented answer, just
+      // proof a human is now on it. One ack per message, never per intent.
+      const queued = result.outcomes.some((o) => o.status === "queued_for_review");
+      if (!spokeToGuest && queued) {
+        const lang = await resolveGuestLanguage(guest.id, job.data.text);
+        await sendWhatsAppMessage(
+          conversation.id,
+          lang === "ar"
+            ? "وصلتنا رسالتك ✅ أحد أفراد الفريق يراجعها الآن ويردّ عليك خلال لحظات."
+            : "We've received your message ✅ A team member is reviewing it and will reply to you shortly."
+        );
       }
     },
     {

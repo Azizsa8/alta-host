@@ -293,7 +293,114 @@ export const api = {
   }) => request<{ ok: boolean; propertyId: string }>("/platform/hotels", { method: "POST", body: JSON.stringify(p) }),
   updateTenant: (id: string, p: { plan?: string; quotaGb?: number; status?: "active" | "suspended" }) =>
     request<{ updated: boolean }>(`/platform/tenants/${id}`, { method: "PATCH", body: JSON.stringify(p) }),
+  socialChannels: () => request<SocialChannelRow[]>("/social/channels"),
+  updateSocialChannel: (channel: string, p: Partial<SocialChannelSettings>) =>
+    request<unknown>(`/social/channels/${channel}`, { method: "PATCH", body: JSON.stringify(p) }),
+  generateForChannel: (channel: string, count = 3) =>
+    request<{ ok: true; drafts: Array<{ idea: string; body: string; fits: boolean }> }>(
+      `/social/channels/${channel}/generate`,
+      { method: "POST", body: JSON.stringify({ count }) }
+    ),
+  socialCalendar: (days = 14) => request<SocialCalendar>(`/social/calendar?days=${days}`),
+  socialAnalytics: () => request<SocialAnalytics>("/social/analytics"),
+  complaints: (status?: string) =>
+    request<ComplaintCaseRow[]>(`/complaints${status ? `?status=${status}` : ""}`),
+  complaintPatterns: () => request<ComplaintPatterns>("/complaints/patterns"),
+  createComplaint: (text: string) =>
+    request<{ case: ComplaintCaseRow }>("/complaints", { method: "POST", body: JSON.stringify({ text }) }),
+  recordRca: (id: string, p: { answers: Array<{ question: string; answer: string }>; rootCause: string; contributing?: string[] }) =>
+    request<{ actions: ComplaintAction[] }>(`/complaints/${id}/rca`, { method: "POST", body: JSON.stringify(p) }),
+  updateComplaint: (id: string, p: { status?: string; actions?: ComplaintAction[]; preventive?: string; resolutionNote?: string }) =>
+    request<{ updated: boolean }>(`/complaints/${id}`, { method: "PATCH", body: JSON.stringify(p) }),
 };
+
+export interface SocialChannelSettings {
+  enabled: boolean;
+  autoPublish: boolean;
+  handle: string;
+  postsPerWeek: number;
+  bestTimes: string[];
+  tone: string;
+  hashtags: string[];
+  audienceNote: string;
+}
+
+export interface SocialChannelRow extends SocialChannelSettings {
+  key: string;
+  name: string;
+  nameAr: string;
+  family: string;
+  publish: "api" | "draft" | "reply";
+  maxChars: number;
+  media: string;
+  toneHintAr: string;
+  configured: boolean;
+  followers: number;
+  reach30d: number;
+  engagement30d: number;
+}
+
+export interface SocialCalendar {
+  windowDays: number;
+  totalGap: number;
+  plan: Array<{ channel: string; nameAr: string; target: number; planned: number; gap: number; bestTimes: string[] }>;
+  scheduled: Array<{ id: string; channel: string; idea: string; status: string; scheduledAt: string | null }>;
+}
+
+export interface SocialAnalytics {
+  windowDays: number;
+  channelsEnabled: number;
+  channelsAvailable: number;
+  totalPublished30d: number;
+  perChannel: Array<{
+    channel: string;
+    nameAr: string;
+    publish: string;
+    published30d: number;
+    failed30d: number;
+    followers: number;
+    reach30d: number;
+    engagement30d: number;
+    engagementRate: number | null;
+    lastSyncedAt: string | null;
+  }>;
+}
+
+export interface ComplaintAction {
+  action: string;
+  owner: string;
+  dueAt: string;
+  done: boolean;
+}
+
+export interface ComplaintCaseRow {
+  id: string;
+  text: string;
+  source: string;
+  category: string;
+  severity: "low" | "medium" | "high" | "critical";
+  reputationRisk: number;
+  status: string;
+  rcaWhy: Array<{ question: string; answer: string }>;
+  rootCause: string;
+  contributing: string[];
+  actions: ComplaintAction[];
+  preventive: string;
+  resolutionNote: string;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+export interface ComplaintPatterns {
+  windowDays: number;
+  total: number;
+  open: number;
+  highRisk: number;
+  byCategory: Record<string, number>;
+  repeatRootCauses: Array<{ cause: string; count: number }>;
+  medianResolutionHours: number | null;
+  containedPct: number | null;
+}
 
 export interface PlatformTenant {
   id: string;

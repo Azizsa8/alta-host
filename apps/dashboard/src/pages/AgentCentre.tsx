@@ -42,6 +42,11 @@ export function AgentCentre({ staff, refreshKey }: { staff: Staff; refreshKey: n
   }, []);
   useEffect(reload, [reload, refreshKey]);
 
+  // Policy is keyed by the agent's KEY, which is what the pipeline reads.
+  // For the original four agents key === department so nothing changes,
+  // but the marketing/reputation agents share a department with their
+  // sub-agents — toggling by department would have written a policy row
+  // the orchestrator never looks at.
   const enabledFor = (key: string) => policies.find((p) => p.agentKey === key)?.enabled ?? true;
 
   async function act(fn: () => Promise<unknown>) {
@@ -86,7 +91,7 @@ export function AgentCentre({ staff, refreshKey }: { staff: Staff; refreshKey: n
         <div className="col-12">
           <div className="row">
             {topAgents.map((a) => {
-              const on = enabledFor(a.department);
+              const on = enabledFor(a.key);
               return (
                 <div className="col-md-6 col-lg-4 mb-3" key={a.key}>
                   <div className={`card h-100 ${on ? "" : "opacity-6"}`}>
@@ -114,7 +119,7 @@ export function AgentCentre({ staff, refreshKey }: { staff: Staff; refreshKey: n
                             type="checkbox"
                             role="switch"
                             checked={on}
-                            onChange={() => void act(() => api.setAgentEnabled(a.department, !on))}
+                            onChange={() => void act(() => api.setAgentEnabled(a.key, !on))}
                           />
                           <label className="form-check-label text-xs">
                             {on ? "إيقاف الوكيل — الرسائل تتحول للموظفين مباشرة" : "تشغيل الوكيل"}

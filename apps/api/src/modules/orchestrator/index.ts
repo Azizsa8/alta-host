@@ -11,6 +11,7 @@ import { startIntentRun } from "../mastra/runner.js";
 import type { ExtractedIntent, Urgency } from "../nlu/types.js";
 import { isAgentEnabled, recordAgentRun } from "../knowledge/service.js";
 import { assertActionAllowed } from "../agents/guards.js";
+import { captureComplaint } from "../complaints/service.js";
 
 const intentEngine = createIntentEngine();
 const pms = createPMSAdapter();
@@ -279,6 +280,23 @@ async function dispatchInner(
     }
 
     case "guest_service.complaint": {
+      // The complaint & reputation manager opens a case the moment a
+      // complaint arrives — BEFORE the reply is even drafted. The whole
+      // value is the window between an unhappy guest and a public review,
+      // and that window starts now, not when a human opens the inbox.
+      // Never blocks the reply path: a case-capture failure must not cost
+      // the guest their answer.
+      if (await isAgentEnabled(ctx.propertyId, "complaint_manager")) {
+        void captureComplaint({
+          propertyId: ctx.propertyId,
+          text: String(intent.params.description ?? intent.params.text ?? ""),
+          guestId: ctx.guestId,
+          conversationId: ctx.conversationId,
+          source: "whatsapp",
+        }).catch(() => {
+          /* logged by the event bus; the guest reply is what matters here */
+        });
+      }
       const proposal = proposeGuestServiceReply(intent, urgency);
       if (AUTO_APPROVE_INTENTS.has(intent.type)) {
         assertActionAllowed("guest_service", proposal.pendingAction, "auto");

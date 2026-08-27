@@ -486,3 +486,65 @@ model ContentItem {
   @@index([status, scheduledAt])
   @@index([tenantId])
 }
+
+// §6-هـ extended: one row per channel a hotel actually operates. Settings,
+// posting calendar, and analytics all hang off this — a hotel's Instagram
+// cadence has nothing to do with its LinkedIn cadence, so they are separate
+// rows, not one global config.
+model SocialChannel {
+  id             String    @id @default(uuid())
+  tenantId       String    @default("") // derived by DB trigger
+  propertyId     String
+  channel        String    // instagram | tiktok | x | linkedin | ... (see CHANNEL_CATALOGUE)
+  handle         String    @default("")
+  enabled        Boolean   @default(false)
+  autoPublish    Boolean   @default(false) // §7: false means every post needs approval
+  postsPerWeek   Int       @default(3)
+  bestTimes      Json      @default("[]") // ["19:00","21:30"] local
+  tone           String    @default("")   // per-channel voice; TikTok ≠ LinkedIn
+  hashtags       Json      @default("[]")
+  audienceNote   String    @default("")
+  lastSyncedAt   DateTime?
+  followers      Int       @default(0)
+  reach30d       Int       @default(0)
+  engagement30d  Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([propertyId, channel])
+  @@index([tenantId])
+}
+
+// §6-د extended: a complaint captured BEFORE it becomes a public review.
+// The whole point is the window between "guest is unhappy" and "guest
+// tells the internet" — this model exists to make that window actionable.
+model ComplaintCase {
+  id            String    @id @default(uuid())
+  tenantId      String    @default("") // derived by DB trigger
+  propertyId    String
+  guestId       String?
+  conversationId String?
+  source        String    @default("whatsapp") // whatsapp | review | staff
+  text          String
+  category      String    @default("general") // cleanliness|staff|noise|food|facilities|billing|safety|general
+  severity      String    @default("medium")  // low | medium | high | critical
+  reputationRisk Int      @default(0)         // 0-100: how likely this becomes a public review
+  status        String    @default("open")    // open | investigating | action_planned | resolved | escalated
+  // Root cause analysis
+  rcaWhy        Json      @default("[]")      // the five whys, as answered
+  rootCause     String    @default("")
+  contributing  Json      @default("[]")
+  // Action plan
+  actions       Json      @default("[]")      // [{action, owner, dueAt, done}]
+  preventive    String    @default("")        // what stops the NEXT one
+  ownerId       String?
+  resolvedAt    DateTime?
+  resolutionNote String   @default("")
+  publicReviewId String?                      // set if it escaped and became public anyway
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([propertyId, status])
+  @@index([propertyId, severity])
+  @@index([tenantId])
+}

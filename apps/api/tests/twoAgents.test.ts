@@ -290,6 +290,69 @@ describe("social media manager + complaint manager", () => {
     expect(patterns.byCategory.facilities).toBeGreaterThanOrEqual(2);
   });
 
+  it("connect says the truth per channel: oauth, token, or honestly manual", async () => {
+    const { startConnect } = await import("../src/modules/social/connect.js");
+    // No developer app registered in tests, so an oauth channel falls back
+    // to the credential path rather than opening a broken redirect.
+    const ig = startConnect("instagram", propertyId);
+    expect(ig?.mode).toBe("token");
+    // Telegram never uses oauth — a bot token IS the auth.
+    expect(startConnect("telegram", propertyId)?.mode).toBe("token");
+    // Channels with no automated surface say so instead of pretending.
+    const snap = startConnect("snapchat", propertyId);
+    expect(snap?.mode).toBe("manual");
+    if (snap?.mode === "manual") expect(snap.noteAr.length).toBeGreaterThan(10);
+    expect(startConnect("nope", propertyId)).toBeNull();
+  });
+
+  it("an unconnected channel grants the agent NO execution capability", async () => {
+    const { agentCapabilities } = await import("../src/modules/social/connections.js");
+    const off = agentCapabilities("instagram", false);
+    expect(off.canPublish).toBe(false);
+    expect(off.canReadAnalytics).toBe(false);
+    expect(off.canDraft).toBe(true); // drafting never needed a connection
+    expect(off.blockedReasonAr).toContain("غير موصولة");
+
+    // Connected AND publishable → the agent may act.
+    const on = agentCapabilities("instagram", true);
+    expect(on.canPublish).toBe(true);
+    // Connected but the platform has no publish API → still cannot publish,
+    // because claiming otherwise would report success for a post that
+    // never existed.
+    const tiktok = agentCapabilities("tiktok", true);
+    expect(tiktok.canPublish).toBe(false);
+    expect(tiktok.blockedReasonAr.length).toBeGreaterThan(10);
+    // A reply surface grants reply, not publish.
+    const gr = agentCapabilities("google_reviews", true);
+    expect(gr.canReply).toBe(true);
+    expect(gr.canPublish).toBe(false);
+  });
+
+  it("the oauth callback state cannot connect a channel to another hotel", async () => {
+    const { verifyState } = await import("../src/modules/social/connect.js");
+    expect(verifyState("not-a-real-state")).toBeNull();
+    // A forged state with the right shape but no valid HMAC is rejected.
+    const forged = Buffer.from(`other-hotel|instagram|${Date.now()}|abcd|deadbeef`).toString("base64url");
+    expect(verifyState(forged)).toBeNull();
+  });
+
+  it("a rejected token is never stored as a working connection", async () => {
+    const { saveChannelCredentials } = await import("../src/modules/social/connect.js");
+    // Telegram verification calls the real API; a junk bot token is refused.
+    const result = await saveChannelCredentials({
+      actor,
+      channel: "telegram",
+      token: "000000:definitely-not-a-real-bot-token",
+      account: "@nope",
+    });
+    expect(result.ok).toBe(false);
+    const row = await prisma.socialChannel.findUnique({
+      where: { propertyId_channel: { propertyId, channel: "telegram" } },
+    });
+    expect(row?.connected).toBe(false);
+    expect(row?.connectionError.length).toBeGreaterThan(0);
+  }, 20_000);
+
   it("a real Arabic complaint is DETECTED, so a case can exist at all", async () => {
     const { RuleBasedIntentEngine } = await import("../src/modules/nlu/ruleBasedEngine.js");
     const engine = new RuleBasedIntentEngine();

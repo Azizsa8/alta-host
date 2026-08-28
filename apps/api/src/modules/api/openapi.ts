@@ -149,6 +149,15 @@ export const OPERATIONS: Record<string, Partial<Record<"get" | "post" | "patch" 
   "/social/channels/{channel}/generate": {
     post: { summary: "Generate drafts sized and toned for this channel; over-length drafts are flagged, never silently cut", tag: "social", params: ["channel"], body: { count: "1-5" } },
   },
+  "/social/channels/{channel}/connect": {
+    post: { summary: "Start a connection — returns an OAuth authorize URL when a developer app is registered, the credential fields when it is not, or an honest note when the platform has no automated surface", tag: "social", params: ["channel"] },
+  },
+  "/social/channels/{channel}/credentials": {
+    post: { summary: "Store a channel token in the vault (AES-256-GCM). The platform must accept the token first — a rejected token is never stored as a working connection", tag: "social", params: ["channel"], body: { token: "write-only, never echoed", account: "page/channel id" } },
+  },
+  "/social/channels/{channel}/connection": {
+    delete: { summary: "Disconnect: removes the vault entry and drops the channel's claimed capabilities", tag: "social", params: ["channel"] },
+  },
   "/social/calendar": { get: { summary: "Slot plan per channel from cadence + best times, with gaps flagged", tag: "social", query: ["days"] } },
   "/social/analytics": { get: { summary: "Followers, reach, engagement per channel; flags configured-but-idle channels", tag: "social" } },
   "/complaints": {

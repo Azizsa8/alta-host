@@ -30,6 +30,7 @@ import {
   channelAnalytics,
 } from "../social/service.js";
 import { CHANNEL_KEYS } from "../social/catalogue.js";
+import { startConnect, saveChannelCredentials, completeOauth, disconnectChannel } from "../social/connect.js";
 import {
   captureComplaint,
   ownCase,
@@ -1146,6 +1147,66 @@ apiRouter.get(
       return;
     }
     res.json(await channelAnalytics(req.staff!.propertyId));
+  })
+);
+
+// Starts a connection: says whether this channel opens an OAuth redirect,
+// needs a pasted token, or has no automated surface at all.
+apiRouter.post(
+  "/social/channels/:channel/connect",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "social.manage")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const { channel } = z.object({ channel: z.enum(CHANNEL_KEYS as [string, ...string[]]) }).parse(req.params);
+    const start = startConnect(channel, req.staff!.propertyId);
+    if (!start) {
+      res.status(404).json({ error: "unknown channel" });
+      return;
+    }
+    res.json(start);
+  })
+);
+
+// Stores a pasted credential in the vault after the platform accepts it.
+apiRouter.post(
+  "/social/channels/:channel/credentials",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "social.manage")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const { channel } = z.object({ channel: z.enum(CHANNEL_KEYS as [string, ...string[]]) }).parse(req.params);
+    const body = z
+      .object({ token: z.string().min(8).max(4000), account: z.string().max(200).optional() })
+      .parse(req.body);
+    const result = await saveChannelCredentials({
+      actor: { staffId: req.staff!.staffId, name: req.staff!.name, propertyId: req.staff!.propertyId },
+      channel,
+      ...body,
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.json({ connected: true, detail: result.detail });
+  })
+);
+
+apiRouter.delete(
+  "/social/channels/:channel/connection",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "social.manage")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const { channel } = z.object({ channel: z.enum(CHANNEL_KEYS as [string, ...string[]]) }).parse(req.params);
+    await disconnectChannel({
+      actor: { staffId: req.staff!.staffId, name: req.staff!.name, propertyId: req.staff!.propertyId },
+      channel,
+    });
+    res.status(204).end();
   })
 );
 

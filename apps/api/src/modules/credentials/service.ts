@@ -2,6 +2,7 @@ import { prisma } from "../../db.js";
 import { logger } from "../../logger.js";
 import { recordAudit } from "../audit/service.js";
 import { seal, open, credentialsConfigured } from "./crypto.js";
+import { CHANNEL_KEYS as SOCIAL_CHANNEL_KEYS } from "../social/catalogue.js";
 
 /** Credential keys this system knows how to consume. Constraining the set
  *  keeps the vault from quietly becoming a general-purpose key-value store
@@ -18,7 +19,20 @@ export const CREDENTIAL_KEYS = [
   "meta.pageId",
 ] as const;
 
-export type CredentialKey = (typeof CREDENTIAL_KEYS)[number];
+/** Per-channel connection credentials, derived from the channel catalogue
+ *  rather than hand-listed: the set stays closed and reviewable (a typo
+ *  cannot invent a key) while covering every channel the studio manages. */
+export const SOCIAL_CREDENTIAL_KEYS = SOCIAL_CHANNEL_KEYS.flatMap((c) => [
+  `social.${c}.token`,
+  `social.${c}.account`,
+]);
+
+export type CredentialKey = (typeof CREDENTIAL_KEYS)[number] | (string & {});
+
+/** The complete allowlist the vault will accept. */
+export function isKnownCredentialKey(key: string): boolean {
+  return (CREDENTIAL_KEYS as readonly string[]).includes(key) || SOCIAL_CREDENTIAL_KEYS.includes(key);
+}
 
 export interface CredentialSummary {
   key: string;

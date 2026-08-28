@@ -504,6 +504,14 @@ model SocialChannel {
   tone           String    @default("")   // per-channel voice; TikTok ≠ LinkedIn
   hashtags       Json      @default("[]")
   audienceNote   String    @default("")
+  // Connection state — set by the connect flow, never by hand. The token
+  // itself lives in the credential vault; only this non-secret linkage
+  // lives here.
+  connected      Boolean   @default(false)
+  connectedAt    DateTime?
+  connectedBy    String?
+  accountRef     String    @default("") // page/channel/account id at the platform
+  connectionError String   @default("")
   lastSyncedAt   DateTime?
   followers      Int       @default(0)
   reach30d       Int       @default(0)

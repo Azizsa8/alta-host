@@ -2,6 +2,7 @@ import { prisma } from "../../db.js";
 import { recordAudit } from "../audit/service.js";
 import { emitEvent } from "../events/bus.js";
 import { CHANNEL_CATALOGUE, channelSpec, type ChannelSpec } from "./catalogue.js";
+import { agentCapabilities, connectionFor, oauthConfigured, MANUAL_ONLY } from "./connections.js";
 import { draftFromIdea, generateIdeas } from "../content/service.js";
 
 /** Catalogue + this hotel's per-channel settings and analytics, merged. */
@@ -13,6 +14,22 @@ export async function listChannels(propertyId: string) {
     return {
       ...spec,
       configured: !!row,
+      connected: row?.connected ?? false,
+      connectedAt: row?.connectedAt?.toISOString() ?? null,
+      accountRef: row?.accountRef ?? "",
+      connectionError: row?.connectionError ?? "",
+      // How this channel can be connected AT ALL, so the button says the
+      // truth before it is pressed rather than after.
+      connectMode: MANUAL_ONLY[spec.key]
+        ? ("manual" as const)
+        : connectionFor(spec.key)
+          ? oauthConfigured(connectionFor(spec.key)!)
+            ? ("oauth" as const)
+            : ("token" as const)
+          : ("manual" as const),
+      manualNoteAr: MANUAL_ONLY[spec.key] ?? "",
+      // What the agent may actually do on this channel right now.
+      agent: agentCapabilities(spec.key, row?.connected ?? false),
       enabled: row?.enabled ?? false,
       autoPublish: row?.autoPublish ?? false,
       handle: row?.handle ?? "",

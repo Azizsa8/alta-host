@@ -301,6 +301,18 @@ export const api = {
       `/social/channels/${channel}/generate`,
       { method: "POST", body: JSON.stringify({ count }) }
     ),
+  connectChannel: (channel: string) =>
+    request<ConnectStart>(`/social/channels/${channel}/connect`, { method: "POST" }),
+  saveChannelCredentials: (channel: string, p: { token: string; account?: string }) =>
+    request<{ connected: boolean; detail: string }>(`/social/channels/${channel}/credentials`, {
+      method: "POST",
+      body: JSON.stringify(p),
+    }),
+  disconnectChannel: (channel: string) =>
+    fetch(`${BASE}/social/channels/${channel}/connection`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${getToken()}` },
+    }).then((r) => r.status === 204),
   socialCalendar: (days = 14) => request<SocialCalendar>(`/social/calendar?days=${days}`),
   socialAnalytics: () => request<SocialAnalytics>("/social/analytics"),
   complaints: (status?: string) =>
@@ -325,6 +337,20 @@ export interface SocialChannelSettings {
   audienceNote: string;
 }
 
+export type ConnectStart =
+  | { mode: "oauth"; authorizeUrl: string }
+  | { mode: "token"; fields: Array<{ key: string; labelAr: string; secret: boolean; hintAr: string }>; noteAr: string }
+  | { mode: "manual"; noteAr: string };
+
+export interface AgentCapabilities {
+  canDraft: boolean;
+  canSchedule: boolean;
+  canPublish: boolean;
+  canReply: boolean;
+  canReadAnalytics: boolean;
+  blockedReasonAr: string;
+}
+
 export interface SocialChannelRow extends SocialChannelSettings {
   key: string;
   name: string;
@@ -335,6 +361,13 @@ export interface SocialChannelRow extends SocialChannelSettings {
   media: string;
   toneHintAr: string;
   configured: boolean;
+  connected: boolean;
+  connectedAt: string | null;
+  accountRef: string;
+  connectionError: string;
+  connectMode: "oauth" | "token" | "manual";
+  manualNoteAr: string;
+  agent: AgentCapabilities;
   followers: number;
   reach30d: number;
   engagement30d: number;

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   api,
+  type ConnectStart,
   type SocialAnalytics,
   type SocialCalendar,
   type SocialChannelRow,
   type Staff,
 } from "../api/client.js";
+import { ChannelLogo } from "../components/ChannelLogo.js";
 
 const FAMILY_LABELS: Record<string, string> = {
   social: "شبكات",
@@ -34,6 +36,7 @@ export function SocialChannels({ staff, refreshKey }: { staff: Staff; refreshKey
   const [drafts, setDrafts] = useState<Record<string, Array<{ idea: string; body: string; fits: boolean }>>>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [connecting, setConnecting] = useState<{ channel: SocialChannelRow; start: ConnectStart } | null>(null);
 
   const reload = useCallback(() => {
     api.socialChannels().then(setChannels).catch((e) => setError(String(e)));
@@ -59,6 +62,20 @@ export function SocialChannels({ staff, refreshKey }: { staff: Staff; refreshKey
 
   return (
     <div className="row">
+      {connecting && (
+        <ConnectDialog
+          channel={connecting.channel}
+          start={connecting.start}
+          busy={busy}
+          onClose={() => setConnecting(null)}
+          onSave={(token, account) =>
+            act(async () => {
+              await api.saveChannelCredentials(connecting.channel.key, { token, account });
+              setConnecting(null);
+            })
+          }
+        />
+      )}
       <div className="col-12 mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
         <ul className="nav nav-pills">
           {(
@@ -96,17 +113,65 @@ export function SocialChannels({ staff, refreshKey }: { staff: Staff; refreshKey
                     <div className="col-md-6 col-xl-4 mb-2" key={c.key}>
                       <div className={`card h-100 ${c.enabled ? "" : "opacity-7"}`}>
                         <div className="card-body py-3">
-                          <div className="d-flex justify-content-between align-items-start">
-                            <div>
-                              <h6 className="mb-0">{c.nameAr}</h6>
-                              <p className="text-xs text-secondary mb-0">
-                                {c.handle || c.name} · حد {c.maxChars} حرف
-                              </p>
+                          <div className="d-flex justify-content-between align-items-start gap-2">
+                            <div className="d-flex align-items-start gap-2">
+                              <ChannelLogo channel={c.key} />
+                              <div>
+                                <h6 className="mb-0">{c.nameAr}</h6>
+                                <p className="text-xs text-secondary mb-0">
+                                  {c.accountRef || c.handle || c.name} · حد {c.maxChars} حرف
+                                </p>
+                              </div>
                             </div>
                             <span className={`badge badge-sm ${PUBLISH_LABELS[c.publish].cls}`} title={PUBLISH_LABELS[c.publish].hint}>
                               {PUBLISH_LABELS[c.publish].label}
                             </span>
                           </div>
+
+                          <div className="d-flex align-items-center gap-2 mt-2 flex-wrap">
+                            {c.connected ? (
+                              <>
+                                <span className="badge badge-sm bg-gradient-success">● موصولة</span>
+                                {canManage && (
+                                  <button
+                                    className="btn btn-link text-danger text-xs p-0 mb-0"
+                                    disabled={busy}
+                                    onClick={() => {
+                                      if (window.confirm(`فصل ${c.nameAr}؟ سيفقد الوكيل صلاحية التنفيذ عليها.`))
+                                        void act(() => api.disconnectChannel(c.key));
+                                    }}
+                                  >
+                                    فصل
+                                  </button>
+                                )}
+                              </>
+                            ) : canManage ? (
+                              <button
+                                className="btn btn-sm bg-gradient-primary mb-0 py-1 px-3 text-xs"
+                                disabled={busy}
+                                onClick={() =>
+                                  void act(async () => {
+                                    const start = await api.connectChannel(c.key);
+                                    setConnecting({ channel: c, start });
+                                  })
+                                }
+                              >
+                                ربط الحساب
+                              </button>
+                            ) : (
+                              <span className="badge badge-sm bg-gradient-secondary">غير موصولة</span>
+                            )}
+                            {c.connectionError && <span className="text-xxs text-danger">{c.connectionError}</span>}
+                          </div>
+
+                          {/* What the agent may actually DO here, right now. */}
+                          <p className="text-xxs text-secondary mb-0 mt-2">
+                            {c.agent.canPublish
+                              ? "الوكيل ينشر مباشرة على هذه القناة"
+                              : c.agent.canReply
+                                ? "الوكيل يرد على التقييمات هنا"
+                                : c.agent.blockedReasonAr}
+                          </p>
 
                           {canManage && (
                             <div className="form-check form-switch mt-2 mb-1">
@@ -359,6 +424,107 @@ function ChannelPanel({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** The connect dialog. What it shows depends on how the channel can
+ *  ACTUALLY be connected — a redirect when a developer app is registered,
+ *  a credential form when it is not, and an honest explanation when the
+ *  platform has no automated surface at all. */
+function ConnectDialog({
+  channel,
+  start,
+  busy,
+  onClose,
+  onSave,
+}: {
+  channel: SocialChannelRow;
+  start: ConnectStart;
+  busy: boolean;
+  onClose: () => void;
+  onSave: (token: string, account: string) => void;
+}) {
+  const [token, setToken] = useState("");
+  const [account, setAccount] = useState("");
+
+  return (
+    <div
+      className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+      style={{ background: "rgba(0,0,0,.55)", zIndex: 1050 }}
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div className="card" style={{ maxWidth: 480, width: "92%" }} onClick={(e) => e.stopPropagation()}>
+        <div className="card-header pb-0 d-flex align-items-center gap-2">
+          <ChannelLogo channel={channel.key} size={36} />
+          <div>
+            <h6 className="mb-0">ربط {channel.nameAr}</h6>
+            <p className="text-xs text-secondary mb-0">{channel.toneHintAr}</p>
+          </div>
+        </div>
+        <div className="card-body pt-3">
+          {start.mode === "oauth" && (
+            <>
+              <p className="text-sm">
+                ستفتح صفحة {channel.nameAr} لتسجيل الدخول والموافقة على الصلاحيات. بعد الموافقة يعود الربط تلقائيًا
+                ويصبح الوكيل قادرًا على التنفيذ.
+              </p>
+              <a className="btn bg-gradient-primary w-100 mb-2" href={start.authorizeUrl} target="_blank" rel="noopener">
+                المتابعة إلى {channel.nameAr}
+              </a>
+              <p className="text-xxs text-secondary mb-0">
+                لا نرى كلمة مرورك أبدًا — المنصة نفسها هي من تتحقق منك، ونستلم رمز وصول يُخزَّن مشفّرًا.
+              </p>
+            </>
+          )}
+
+          {start.mode === "token" && (
+            <>
+              <div className="alert alert-info text-white text-xs py-2">{start.noteAr}</div>
+              {start.fields.map((f) => (
+                <div key={f.key} className="mb-2">
+                  <label className="text-xs">{f.labelAr}</label>
+                  <input
+                    className="form-control form-control-sm"
+                    type={f.secret ? "password" : "text"}
+                    dir="ltr"
+                    value={f.key === "token" ? token : account}
+                    onChange={(e) => (f.key === "token" ? setToken(e.target.value) : setAccount(e.target.value))}
+                  />
+                  <p className="text-xxs text-secondary mb-0 mt-1">{f.hintAr}</p>
+                </div>
+              ))}
+              <button
+                className="btn bg-gradient-primary w-100 mb-2"
+                disabled={busy || token.trim().length < 8}
+                onClick={() => onSave(token.trim(), account.trim())}
+              >
+                التحقق والربط
+              </button>
+              <p className="text-xxs text-secondary mb-0">
+                نتحقق من الرمز مع المنصة أولًا — الرمز المرفوض لا يُحفظ كقناة موصولة. يُخزَّن مشفّرًا (AES-256-GCM)
+                ولا يُعرض بعد الحفظ أبدًا.
+              </p>
+            </>
+          )}
+
+          {start.mode === "manual" && (
+            <>
+              <p className="text-sm mb-2">{start.noteAr}</p>
+              <p className="text-xs text-secondary mb-0">
+                القناة تبقى في التقويم والتوليد: نجهّز المحتوى جاهزًا للنشر، لكن الخطوة الأخيرة يدوية — ولا ندّعي غير ذلك.
+              </p>
+            </>
+          )}
+        </div>
+        <div className="card-footer pt-0">
+          <button className="btn btn-outline-secondary btn-sm w-100 mb-0" onClick={onClose}>
+            إغلاق
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,0 +1,94 @@
+/* ALTA runs on Creative Tim's Material Dashboard 2 (Bootstrap 5) — see
+   index.html for the compiled stylesheet + RTL toggle. This file only adds
+   what the template doesn't ship: an Arabic-first typeface (Roboto has no
+   Arabic glyphs) and the handful of small ALTA-specific pieces (kanban
+   columns, SLA accents) the template has no equivalent for. */
+
+body, .navbar-nav .nav-link, h1, h2, h3, h4, h5, h6, .card, table, .btn, input, textarea, .breadcrumb {
+  font-family: "Tajawal", "Roboto", sans-serif;
+}
+code, .mono {
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace;
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+/* The vendor sidenav's fixed/mobile-collapse behavior only activates under
+   classes (`.rtl` on body, `.g-sidenav-show`) this port never sets — so
+   below its 1200px breakpoint the sidenav stays fully visible but
+   main-content never gets pushed aside, and they overlap. Replace it with
+   a simple, always-consistent rule: reserve the sidenav's width on
+   main-content whenever the sidenav is on screen, using logical properties
+   so it's correct under dir="rtl" without fighting the vendor's
+   left/right-hardcoded rules. */
+@media (min-width: 576px) {
+  .sidenav {
+    position: fixed;
+    inset-inline-start: 0;
+    top: 0;
+    transform: none !important;
+    width: 250px;
+    height: 100vh;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    z-index: 1030;
+  }
+  .main-content {
+    margin-inline-start: 250px !important;
+    margin-inline-end: 0 !important;
+  }
+}
+@media (max-width: 575.98px) {
+  .sidenav {
+    position: fixed;
+    inset-inline-start: 0;
+    top: 0;
+    width: 250px;
+    height: 100vh;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    z-index: 1030;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+  }
+  [dir="rtl"] .sidenav {
+    transform: translateX(100%);
+  }
+  body.g-sidenav-pinned .sidenav {
+    transform: translateX(0) !important;
+  }
+  .main-content {
+    margin-inline-start: 0 !important;
+  }
+}
+
+/* Ticket Board: Material Dashboard has no kanban primitive, so this is the
+   one layout piece built from scratch, using the template's own card/spacing
+   tokens (border-radius, shadow, gray scale) rather than inventing new ones. */
+.md-kanban {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+@media (max-width: 992px) {
+  .md-kanban {
+    grid-template-columns: 1fr;
+  }
+}
+.md-kanban-col-header {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #7b809a;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+.md-ticket-card {
+  border-inline-start: 3px solid transparent;
+}
+.md-ticket-card.sla-warn {
+  border-inline-start-color: #fb8c00;
+}
+.md-ticket-card.sla-danger {
+  border-inline-start-color: #ea0606;
+}

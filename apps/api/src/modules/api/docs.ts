@@ -26,7 +26,7 @@ docsRouter.get("/docs", (_req, res) => {
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8"/>
-  <title>ALTA HOST API</title>
+  <title>HostOps API</title>
   <link rel="stylesheet" href="/api/docs/assets/swagger-ui.css"/>
 </head>
 <body>

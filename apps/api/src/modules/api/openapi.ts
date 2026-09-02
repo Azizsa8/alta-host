@@ -205,10 +205,10 @@ export function buildOpenApiSpec(): Record<string, unknown> {
   return {
     openapi: "3.0.3",
     info: {
-      title: "ALTA HOST API",
+      title: "HostOps API",
       version: "1.0.0",
       description:
-        "منصة ألتا هوست — WhatsApp-first hospitality AI agents. All endpoints are tenant-scoped to the authenticated staff's property (§11-1); the JWT, not query params, decides whose data you see.",
+        "منصة HostOps — WhatsApp-first hospitality AI agents. All endpoints are tenant-scoped to the authenticated staff's property (§11-1); the JWT, not query params, decides whose data you see.",
     },
     servers: [{ url: "/", description: "same origin (Caddy)" }],
     components: {

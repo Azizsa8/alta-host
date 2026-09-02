@@ -37,10 +37,10 @@ interface AgentNodeData extends Record<string, unknown> {
 }
 
 const STATE_COLORS: Record<NodeState, { border: string; glow: string; chip: string }> = {
-  idle: { border: "#d8dce6", glow: "none", chip: "#9aa3b5" },
-  active: { border: "#ec407a", glow: "0 0 0 6px rgba(236,64,122,.16)", chip: "#ec407a" },
-  waiting: { border: "#fb8c00", glow: "0 0 0 6px rgba(251,140,0,.16)", chip: "#fb8c00" },
-  done: { border: "#43a047", glow: "0 0 0 6px rgba(67,160,71,.14)", chip: "#43a047" },
+  idle: { border: "#2C2140", glow: "none", chip: "#6A5F7C" },
+  active: { border: "#E4177E", glow: "0 0 0 5px rgba(228,23,126,.16)", chip: "#FF5BA3" },
+  waiting: { border: "#C9A227", glow: "0 0 0 5px rgba(201,162,39,.18)", chip: "#E8A33D" },
+  done: { border: "#3FBF8F", glow: "0 0 0 5px rgba(63,191,143,.14)", chip: "#3FBF8F" },
 };
 
 const STATE_LABEL_AR: Record<NodeState, string> = {
@@ -58,10 +58,10 @@ function AgentNode({ data }: NodeProps) {
       style={{
         minWidth: d.kind === "sub" ? 150 : 190,
         opacity: d.kind === "sub" ? 0.95 : 1,
-        background: "#fff",
-        border: `2px solid ${c.border}`,
-        boxShadow: c.glow === "none" ? "0 2px 10px rgba(20,22,40,.06)" : c.glow,
-        borderRadius: 14,
+        background: d.kind === "sub" ? "#171221" : "#1F1830",
+        border: `1px solid ${c.border}`,
+        boxShadow: c.glow === "none" ? "none" : c.glow,
+        borderRadius: 6,
         padding: "12px 14px",
         transition: "border-color .25s ease, box-shadow .25s ease",
         direction: "rtl",
@@ -70,7 +70,7 @@ function AgentNode({ data }: NodeProps) {
     >
       <Handle type="target" position={Position.Right} style={{ opacity: 0 }} />
       <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
-        <span style={{ fontWeight: d.kind === "sub" ? 500 : 700, fontSize: d.kind === "sub" ? 12 : 14, color: "#344767" }}>
+        <span style={{ fontWeight: d.kind === "sub" ? 500 : 700, fontSize: d.kind === "sub" ? 12 : 13.5, color: "#F3EFF7" }}>
           {d.kind === "sub" ? "↳ " : ""}
           {d.label}
         </span>
@@ -92,11 +92,11 @@ function AgentNode({ data }: NodeProps) {
           </span>
         )}
       </div>
-      <div style={{ fontSize: 11, color: "#7b809a", marginTop: 3 }}>{d.sublabel}</div>
+      <div style={{ fontSize: 10.5, color: "#9A8FA8", marginTop: 3, fontFamily: "IBM Plex Mono, monospace" }}>{d.sublabel}</div>
       <div style={{ display: "flex", gap: 5, marginTop: 7, flexWrap: "wrap" }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: c.chip }}>{STATE_LABEL_AR[d.state]}</span>
         {d.reviewPolicy === "human_review" && (
-          <span style={{ fontSize: 10, color: "#8a5a10", background: "#fdf3e3", borderRadius: 4, padding: "0 5px" }}>
+          <span style={{ fontSize: 10, color: "#E8A33D", background: "rgba(232,163,61,.14)", border: "1px solid rgba(232,163,61,.35)", borderRadius: 4, padding: "0 5px" }}>
             مراجعة بشرية
           </span>
         )}
@@ -162,6 +162,16 @@ function describe(evt: LiveEvent): string {
       return `📣 نُشر محتوى على ${String(p.channel)}`;
     case "content.failed":
       return `⚠ فشل نشر محتوى على ${String(p.channel)}`;
+    case "complaint.captured":
+      return `فُتحت حالة شكوى (${String(p.category)}) — خطورة ${String(p.severity)}`;
+    case "complaint.reputation_risk":
+      return `🚨 خطر سمعة ${String(p.reputationRisk)}٪: ${String(p.preview ?? "").slice(0, 50)}`;
+    case "complaint.status":
+      return `حالة الشكوى → ${String(p.status)}`;
+    case "social.connected":
+      return `🔗 رُبطت قناة ${String(p.channel)}`;
+    case "social.stats":
+      return `تحديث أرقام ${String(p.channel)} — ${String(p.followers)} متابع`;
     default:
       return evt.type;
   }
@@ -553,7 +563,7 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
                 </p>
               </div>
             )}
-            <div style={{ height: 470, borderRadius: 12, overflow: "hidden", background: "#f7f8fc" }}>
+            <div style={{ height: "calc(100vh - 320px)", minHeight: 460, borderRadius: 6, overflow: "hidden", background: "#0E0B14", border: "1px solid #2C2140" }}>
               <ReactFlow
                 nodes={nodes}
                 onNodesChange={onNodesChange}
@@ -612,7 +622,7 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
             <h6 className="mb-0">سجل النشاط الحيّ</h6>
             <p className="text-sm text-secondary mb-0">أحدث الأحداث أولاً</p>
           </div>
-          <div className="card-body pt-2" style={{ maxHeight: 470, overflowY: "auto" }}>
+          <div className="card-body pt-2" style={{ maxHeight: "calc(100vh - 320px)", minHeight: 460, overflowY: "auto" }}>
             {feed.length === 0 && <p className="text-sm text-secondary">لا يوجد نشاط بعد.</p>}
             {feed.map((evt) => (
               <div key={evt.seq} className="d-flex gap-2 py-2 border-bottom">

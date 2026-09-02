@@ -92,3 +92,329 @@ code, .mono {
 .md-ticket-card.sla-danger {
   border-inline-start-color: #ea0606;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   HostOps theme layer
+   ─────────────────────────────────────────────────────────────────────
+   The vendor template (Material Dashboard 2) ships a marketing-site look:
+   white cards floating on light grey, content hugging the top of the
+   viewport, a gradient sidebar. An operations screen is scanned all day,
+   not admired once — so this layer regrounds it as a control room:
+   dark surface, denser rhythm, state encoded in form as well as number.
+
+   Palette and type match the client deck deliberately: the product and
+   the pitch should look like the same company.
+   ══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --hs-ground: #0E0B14;
+  --hs-surface: #171221;
+  --hs-surface-2: #1F1830;
+  --hs-line: #2C2140;
+  --hs-line-soft: #241B36;
+  --hs-ink: #F3EFF7;
+  --hs-muted: #9A8FA8;
+  --hs-magenta: #E4177E;
+  --hs-magenta-soft: #FF5BA3;
+  --hs-brass: #C9A227;
+  --hs-good: #3FBF8F;
+  --hs-warn: #E8A33D;
+  --hs-crit: #FF4D5E;
+  --hs-display: "Readex Pro", "Tajawal", system-ui, sans-serif;
+  --hs-body: "IBM Plex Sans Arabic", "Readex Pro", system-ui, sans-serif;
+  --hs-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+/* ── ground ───────────────────────────────────────────────────────── */
+body,
+body.rtl {
+  background: var(--hs-ground) !important;
+  color: var(--hs-ink);
+  font-family: var(--hs-body);
+  font-size: 14px;
+}
+body, .navbar-nav .nav-link, h1, h2, h3, h4, h5, h6, .card, table, .btn, input, textarea, .breadcrumb {
+  font-family: var(--hs-body);
+}
+h1, h2, h3, h4, h5, h6, .hs-display {
+  font-family: var(--hs-display);
+  color: var(--hs-ink);
+  letter-spacing: -0.01em;
+}
+.main-content { background: var(--hs-ground) !important; }
+/* The template centres a narrow column and leaves the rest of a 1080p
+   screen empty. Operations screens earn their width. */
+.container-fluid { max-width: 1680px; }
+
+/* ── surfaces ─────────────────────────────────────────────────────── */
+.card {
+  background: var(--hs-surface) !important;
+  border: 1px solid var(--hs-line) !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  color: var(--hs-ink);
+}
+.card .card-header {
+  background: transparent !important;
+  border-bottom: 1px solid var(--hs-line-soft);
+  padding: 14px 18px 12px;
+}
+.card .card-body { padding: 16px 18px; }
+.card h6 { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+
+/* Text utilities the template paints for a white page. */
+.text-dark, .text-body { color: var(--hs-ink) !important; }
+.text-secondary, .text-muted { color: var(--hs-muted) !important; }
+.opacity-7, .opacity-8 { opacity: 1 !important; color: var(--hs-muted) !important; }
+.bg-white, .bg-gray-100, .bg-gray-200 { background: var(--hs-surface) !important; }
+hr, .horizontal { border-color: var(--hs-line) !important; opacity: 1; }
+.border, .border-top, .border-bottom, .border-start, .border-end { border-color: var(--hs-line) !important; }
+
+/* ── sidebar: grouped, quiet, scannable ───────────────────────────── */
+.sidenav {
+  background: linear-gradient(180deg, #140F1F 0%, #0E0B14 100%) !important;
+  border-inline-end: 1px solid var(--hs-line);
+  width: 244px !important;
+}
+@media (min-width: 576px) { .main-content { margin-inline-start: 244px !important; } }
+.sidenav .navbar-brand, .sidenav .navbar-brand * { color: var(--hs-ink) !important; }
+.sidenav .nav-link {
+  color: var(--hs-muted) !important;
+  border-radius: 5px !important;
+  margin: 1px 10px;
+  padding: 8px 12px !important;
+  font-size: 13.5px;
+  font-weight: 400;
+  transition: background .18s, color .18s;
+}
+.sidenav .nav-link:hover { background: rgba(255,255,255,.045) !important; color: var(--hs-ink) !important; }
+.sidenav .nav-link.active,
+.sidenav .nav-link.active.bg-gradient-primary {
+  background: rgba(228,23,126,.13) !important;
+  color: var(--hs-ink) !important;
+  box-shadow: none !important;
+  position: relative;
+}
+.sidenav .nav-link.active::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 18%;
+  height: 64%;
+  width: 2px;
+  background: var(--hs-magenta);
+  border-radius: 2px;
+}
+.sidenav .nav-link .material-icons-round { font-size: 18px; opacity: .85; }
+/* Section label between nav groups — set via data-group on the <li>. */
+.nav-group-label {
+  font-family: var(--hs-mono);
+  font-size: 9.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: #6A5F7C;
+  padding: 14px 22px 5px;
+}
+
+/* ── top bar ──────────────────────────────────────────────────────── */
+.navbar-main, #navbarBlur {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-bottom: 1px solid var(--hs-line-soft);
+  border-radius: 0 !important;
+  margin-inline: 0 !important;
+  padding-inline: 4px !important;
+}
+.breadcrumb, .breadcrumb-item, .breadcrumb-item a, .breadcrumb-item.active {
+  color: var(--hs-muted) !important;
+  font-size: 12px;
+}
+.navbar-main h6 { font-size: 17px; }
+
+/* ── numbers deserve a real face ──────────────────────────────────── */
+.hs-metric, .text-lg, h4, h5 {
+  font-variant-numeric: tabular-nums;
+}
+.hs-metric {
+  font-family: var(--hs-mono);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* ── badges: state as form, not just colour ───────────────────────── */
+.badge {
+  border-radius: 4px !important;
+  font-weight: 500;
+  letter-spacing: 0;
+  padding: 3px 8px !important;
+  font-size: 11px !important;
+  text-transform: none;
+}
+.badge.bg-gradient-success { background: rgba(63,191,143,.15) !important; color: var(--hs-good) !important; border: 1px solid rgba(63,191,143,.35); }
+.badge.bg-gradient-warning { background: rgba(232,163,61,.15) !important; color: var(--hs-warn) !important; border: 1px solid rgba(232,163,61,.35); }
+.badge.bg-gradient-danger  { background: rgba(255,77,94,.15)  !important; color: var(--hs-crit) !important; border: 1px solid rgba(255,77,94,.38); }
+.badge.bg-gradient-info    { background: rgba(90,160,255,.14) !important; color: #7FB2FF !important; border: 1px solid rgba(90,160,255,.32); }
+.badge.bg-gradient-primary { background: rgba(228,23,126,.16) !important; color: var(--hs-magenta-soft) !important; border: 1px solid rgba(228,23,126,.4); }
+.badge.bg-gradient-secondary, .badge.bg-gradient-dark { background: var(--hs-surface-2) !important; color: var(--hs-muted) !important; border: 1px solid var(--hs-line); }
+
+/* ── buttons ──────────────────────────────────────────────────────── */
+.btn {
+  border-radius: 5px !important;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: none !important;
+  font-size: 13px;
+}
+.btn.bg-gradient-primary { background: var(--hs-magenta) !important; border: none; color: #fff !important; }
+.btn.bg-gradient-primary:hover { background: var(--hs-magenta-soft) !important; }
+.btn.bg-gradient-success { background: var(--hs-good) !important; color: #04150F !important; border: none; }
+.btn.bg-gradient-warning { background: var(--hs-warn) !important; color: #1B1204 !important; border: none; }
+.btn.bg-gradient-danger  { background: var(--hs-crit) !important; color: #fff !important; border: none; }
+.btn.bg-gradient-dark, .btn.bg-gradient-info { background: var(--hs-surface-2) !important; color: var(--hs-ink) !important; border: 1px solid var(--hs-line); }
+.btn-outline-primary { border-color: rgba(228,23,126,.45) !important; color: var(--hs-magenta-soft) !important; }
+.btn-outline-primary:hover { background: rgba(228,23,126,.12) !important; color: var(--hs-ink) !important; }
+.btn-outline-secondary { border-color: var(--hs-line) !important; color: var(--hs-muted) !important; }
+.btn-outline-secondary:hover { background: var(--hs-surface-2) !important; color: var(--hs-ink) !important; }
+.btn-outline-danger { border-color: rgba(255,77,94,.45) !important; color: var(--hs-crit) !important; }
+.btn-link { text-decoration: none; }
+
+/* ── forms ────────────────────────────────────────────────────────── */
+.form-control, .form-select, textarea, input[type="text"], input[type="password"], input[type="number"] {
+  background: var(--hs-surface-2) !important;
+  border: 1px solid var(--hs-line) !important;
+  color: var(--hs-ink) !important;
+  border-radius: 5px !important;
+}
+.form-control::placeholder { color: #6A5F7C !important; }
+.form-control:focus, .form-select:focus {
+  border-color: var(--hs-magenta) !important;
+  box-shadow: 0 0 0 2px rgba(228,23,126,.18) !important;
+}
+.form-select option { background: var(--hs-surface-2); color: var(--hs-ink); }
+.form-check-input { background-color: var(--hs-surface-2); border-color: var(--hs-line); }
+.form-check-input:checked { background-color: var(--hs-magenta) !important; border-color: var(--hs-magenta) !important; }
+label, .form-check-label { color: var(--hs-muted); }
+
+/* ── tables read as data, not as a document ───────────────────────── */
+.table { color: var(--hs-ink); --bs-table-bg: transparent; }
+.table thead th {
+  background: var(--hs-surface-2) !important;
+  color: var(--hs-muted) !important;
+  font-family: var(--hs-mono);
+  font-size: 10px !important;
+  letter-spacing: .12em;
+  border-bottom: 1px solid var(--hs-line) !important;
+  padding: 9px 14px !important;
+}
+.table tbody td {
+  border-bottom: 1px solid var(--hs-line-soft) !important;
+  padding: 10px 14px !important;
+  font-size: 13px;
+  color: var(--hs-ink);
+}
+.table tbody tr:hover td { background: rgba(255,255,255,.022); }
+
+/* ── tabs ─────────────────────────────────────────────────────────── */
+.nav-pills { background: transparent !important; gap: 4px; }
+.nav-pills .nav-link {
+  color: var(--hs-muted) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 5px !important;
+  font-size: 13px;
+}
+.nav-pills .nav-link.active {
+  background: var(--hs-surface-2) !important;
+  color: var(--hs-ink) !important;
+  border-color: var(--hs-line) !important;
+  box-shadow: none !important;
+}
+
+/* ── alerts ───────────────────────────────────────────────────────── */
+.alert { border-radius: 5px; border-width: 1px; }
+.alert-warning { background: rgba(232,163,61,.12) !important; border-color: rgba(232,163,61,.4) !important; color: var(--hs-warn) !important; }
+.alert-success { background: rgba(63,191,143,.12) !important; border-color: rgba(63,191,143,.4) !important; color: var(--hs-good) !important; }
+.alert-info    { background: rgba(90,160,255,.10) !important; border-color: rgba(90,160,255,.35) !important; color: #7FB2FF !important; }
+
+/* ── progress ─────────────────────────────────────────────────────── */
+.progress { background: var(--hs-surface-2) !important; border: 1px solid var(--hs-line); }
+
+/* ── the ops-centre graph sits on the same ground ─────────────────── */
+.react-flow__renderer, .react-flow { background: var(--hs-ground) !important; }
+.react-flow__controls button {
+  background: var(--hs-surface-2) !important;
+  border-color: var(--hs-line) !important;
+  fill: var(--hs-ink) !important;
+  color: var(--hs-ink) !important;
+}
+
+/* Focus is visible for keyboard users on a dark ground. */
+:focus-visible { outline: 2px solid var(--hs-magenta-soft); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+
+/* ── wordmark ─────────────────────────────────────────────────────── */
+.hs-wordmark {
+  font-family: var(--hs-display);
+  font-weight: 600;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+  color: var(--hs-ink);
+}
+.hs-wordmark-accent { color: var(--hs-magenta); }
+.hs-wordmark-sub {
+  color: var(--hs-muted);
+  font-size: 11px;
+  margin: 3px 0 0;
+}
+
+/* ── header status strip ──────────────────────────────────────────────
+   These five numbers used to sit in an 80%-opacity sidebar footer — the
+   least-looked-at pixels on the page. A shift lead needs them without
+   hunting, and needs the ones that demand action to look different. */
+.hs-statusbar {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-inline-start: auto;
+  border: 1px solid var(--hs-line);
+  border-radius: 6px;
+  background: var(--hs-surface);
+  overflow: hidden;
+}
+.hs-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  min-width: 84px;
+  border-inline-start: 1px solid var(--hs-line-soft);
+  position: relative;
+}
+.hs-stat:first-child { border-inline-start: none; }
+.hs-stat b { font-size: 17px; line-height: 1.15; color: var(--hs-ink); }
+.hs-stat em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--hs-muted);
+  white-space: nowrap;
+}
+/* A count that needs a human is not the same as a count that doesn't. */
+.hs-stat.is-warn b { color: var(--hs-warn); }
+.hs-stat.is-crit b { color: var(--hs-crit); }
+.hs-stat.is-warn::after, .hs-stat.is-crit::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: 2px;
+  background: currentColor;
+  opacity: .55;
+}
+.hs-stat.is-warn::after { background: var(--hs-warn); }
+.hs-stat.is-crit::after { background: var(--hs-crit); }
+@media (max-width: 1100px) { .hs-statusbar { display: none; } }

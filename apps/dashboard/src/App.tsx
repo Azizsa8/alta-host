@@ -27,6 +27,17 @@ const PLATFORM_NAV: Array<{ key: View; label: string; icon: string }> = [
   { key: "audit", label: "سجل التدقيق", icon: "verified_user" },
 ];
 
+/** Nav grouped by what a shift actually does: watch, then act on guests,
+ *  then run the property, then grow it, then govern it. A flat list of
+ *  fourteen identical rows costs a scan every single time. */
+const NAV_GROUPS: Array<{ label: string; keys: View[] }> = [
+  { label: "المراقبة", keys: ["ops"] },
+  { label: "النزلاء", keys: ["inbox", "reviews", "guests", "simulator"] },
+  { label: "التشغيل", keys: ["tickets", "workorders", "storage"] },
+  { label: "النمو", keys: ["social", "content", "reputation", "complaints"] },
+  { label: "الإدارة", keys: ["agents", "report", "audit"] },
+];
+
 const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
   { key: "ops", label: "مركز العمليات", icon: "hub" },
   { key: "inbox", label: "صندوق الرسائل", icon: "forum" },
@@ -155,15 +166,26 @@ export default function App() {
       >
         <div className="sidenav-header">
           <a className="navbar-brand m-0" href="#" onClick={(e) => e.preventDefault()}>
-            <span className="ms-1 font-weight-bold text-white fs-5">ألتا</span>
+            <span className="hs-wordmark">
+              Host<span className="hs-wordmark-accent">Ops</span>
+            </span>
           </a>
-          <p className="text-white opacity-8 text-xs mb-0 mt-1">فندق الرياض بوليفارد (تجريبي)</p>
+          <p className="hs-wordmark-sub">عمليات الضيافة · فندق الرياض بوليفارد</p>
         </div>
         <hr className="horizontal light mt-2 mb-2" />
         <div className="collapse navbar-collapse w-auto max-height-vh-100" id="sidenav-collapse-main">
           <ul className="navbar-nav">
-            {(staff.role === "alta_admin" ? PLATFORM_NAV : NAV_ITEMS).map((item) => (
+            {(staff.role === "alta_admin"
+              ? PLATFORM_NAV.map((item) => ({ item, groupLabel: "" }))
+              : NAV_GROUPS.flatMap((g) =>
+                  g.keys
+                    .map((k) => NAV_ITEMS.find((n) => n.key === k))
+                    .filter((n): n is (typeof NAV_ITEMS)[number] => !!n)
+                    .map((item, i) => ({ item, groupLabel: i === 0 ? g.label : "" }))
+                )
+            ).map(({ item, groupLabel }) => (
               <li className="nav-item" key={item.key}>
+                {groupLabel && <p className="nav-group-label mb-0">{groupLabel}</p>}
                 <a
                   className={`nav-link text-white ${view === item.key ? "active bg-gradient-primary" : ""}`}
                   href="#"
@@ -185,30 +207,6 @@ export default function App() {
           </ul>
         </div>
         <div className="sidenav-footer position-absolute w-100 bottom-0">
-          {metrics && (
-            <div className="mx-3 mb-3 text-white text-xs opacity-8">
-              <div className="d-flex justify-content-between py-1">
-                <span>تذاكر مفتوحة</span>
-                <b className="mono">{metrics.openTickets}</b>
-              </div>
-              <div className="d-flex justify-content-between py-1">
-                <span>تجاوزت المهلة</span>
-                <b className="mono">{metrics.escalatedTickets}</b>
-              </div>
-              <div className="d-flex justify-content-between py-1">
-                <span>إجمالي التذاكر</span>
-                <b className="mono">{metrics.totalTickets}</b>
-              </div>
-              <div className="d-flex justify-content-between py-1">
-                <span>رسائل عاجلة</span>
-                <b className="mono">{metrics.urgentIntents}</b>
-              </div>
-              <div className="d-flex justify-content-between py-1">
-                <span>النزلاء</span>
-                <b className="mono">{metrics.guestCount}</b>
-              </div>
-            </div>
-          )}
           <div className="mx-3 mb-3 pt-2 border-top border-white border-opacity-10">
             <div className="d-flex justify-content-between align-items-center">
               <div>
@@ -232,7 +230,7 @@ export default function App() {
             <nav aria-label="breadcrumb">
               <ol className="breadcrumb bg-transparent mb-0 pb-0 pt-1 px-0">
                 <li className="breadcrumb-item text-sm">
-                  <span className="opacity-5 text-dark">ألتا</span>
+                  <span className="opacity-5 text-dark">HostOps</span>
                 </li>
                 <li className="breadcrumb-item text-sm text-dark active" aria-current="page">
                   {VIEW_TITLES[view]}
@@ -240,6 +238,30 @@ export default function App() {
               </ol>
               <h6 className="font-weight-bolder mb-0">{VIEW_TITLES[view]}</h6>
             </nav>
+            {metrics && (
+              <div className="hs-statusbar" role="status" aria-label="حالة التشغيل">
+                <span className="hs-stat">
+                  <b className="hs-metric">{metrics.openTickets}</b>
+                  <em>تذاكر مفتوحة</em>
+                </span>
+                <span className={`hs-stat ${metrics.escalatedTickets > 0 ? "is-crit" : ""}`}>
+                  <b className="hs-metric">{metrics.escalatedTickets}</b>
+                  <em>تجاوزت المهلة</em>
+                </span>
+                <span className={`hs-stat ${metrics.pendingReviews > 0 ? "is-warn" : ""}`}>
+                  <b className="hs-metric">{metrics.pendingReviews}</b>
+                  <em>بانتظار قرارك</em>
+                </span>
+                <span className={`hs-stat ${metrics.urgentIntents > 0 ? "is-warn" : ""}`}>
+                  <b className="hs-metric">{metrics.urgentIntents}</b>
+                  <em>رسائل عاجلة</em>
+                </span>
+                <span className="hs-stat">
+                  <b className="hs-metric">{metrics.guestCount}</b>
+                  <em>النزلاء</em>
+                </span>
+              </div>
+            )}
             <div className="collapse navbar-collapse mt-sm-0 mt-2 me-md-0 me-sm-4" id="navbar">
               <ul className="navbar-nav justify-content-end ms-auto">
                 <li className="nav-item d-xl-none ps-3 d-flex align-items-center">

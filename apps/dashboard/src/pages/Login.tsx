@@ -30,8 +30,8 @@ export function Login({ onLoggedIn }: { onLoggedIn: (staff: Staff) => void }) {
       <div className="card z-index-0" style={{ maxWidth: 420, width: "100%", margin: "0 16px" }}>
         <div className="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
           <div className="bg-gradient-primary shadow-primary border-radius-lg py-3 pe-1 text-center">
-            <h5 className="text-white mb-0">ألتا — تسجيل الدخول</h5>
-            <p className="text-white text-sm opacity-8 mb-0">مركز التحكم</p>
+            <h5 className="text-white mb-0">HostOps</h5>
+            <p className="text-white text-sm opacity-8 mb-0">غرفة عمليات الضيافة</p>
           </div>
         </div>
         <div className="card-body">

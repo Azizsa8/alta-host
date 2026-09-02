@@ -170,50 +170,121 @@ h1, h2, h3, h4, h5, h6, .hs-display {
 hr, .horizontal { border-color: var(--hs-line) !important; opacity: 1; }
 .border, .border-top, .border-bottom, .border-start, .border-end { border-color: var(--hs-line) !important; }
 
-/* ── sidebar: grouped, quiet, scannable ───────────────────────────── */
+/* ── sidebar: grouped, quiet, scannable ─────────────────────────────────
+   Three things were wrong and all three were spacing, not colour:
+   the subtitle overflowed the header box and collided with the nav below
+   it; links were inset 16px while their group labels were inset 22px, so
+   no two left edges lined up; and 1.5px margins left rows touching.
+   One inset token now governs every child, and the rhythm is set in one
+   place instead of per element. */
 .sidenav {
   background: linear-gradient(180deg, #140F1F 0%, #0E0B14 100%) !important;
   border-inline-end: 1px solid var(--hs-line);
-  width: 244px !important;
+  width: 252px !important;
+  --hs-nav-inset: 16px;
 }
-@media (min-width: 576px) { .main-content { margin-inline-start: 244px !important; } }
+@media (min-width: 576px) { .main-content { margin-inline-start: 252px !important; } }
+
+/* The header owns its own space and ends with a rule, so the wordmark and
+   its subtitle read as one block instead of leaking into the first link. */
+.sidenav .sidenav-header {
+  padding: 20px var(--hs-nav-inset) 16px;
+  border-bottom: 1px solid var(--hs-line-soft);
+  margin-bottom: 6px;
+  min-height: 0;
+  height: auto;
+}
+.sidenav .navbar-brand { padding: 0 !important; margin: 0 !important; display: block; }
 .sidenav .navbar-brand, .sidenav .navbar-brand * { color: var(--hs-ink) !important; }
+
 .sidenav .nav-link {
-  color: var(--hs-muted) !important;
-  border-radius: 5px !important;
-  margin: 1px 10px;
-  padding: 8px 12px !important;
+  color: #B6ABC6 !important;
+  border-radius: 6px !important;
+  margin: 0 var(--hs-nav-inset) 3px;
+  padding: 9px 11px !important;
   font-size: 13.5px;
   font-weight: 400;
+  line-height: 1.35;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   transition: background .18s, color .18s;
 }
-.sidenav .nav-link:hover { background: rgba(255,255,255,.045) !important; color: var(--hs-ink) !important; }
+.sidenav .nav-link:hover { background: rgba(255,255,255,.05) !important; color: var(--hs-ink) !important; }
 .sidenav .nav-link.active,
 .sidenav .nav-link.active.bg-gradient-primary {
-  background: rgba(228,23,126,.13) !important;
+  background: rgba(228,23,126,.14) !important;
   color: var(--hs-ink) !important;
   box-shadow: none !important;
+  font-weight: 500;
   position: relative;
 }
 .sidenav .nav-link.active::before {
   content: "";
   position: absolute;
-  inset-inline-start: 0;
-  top: 18%;
-  height: 64%;
+  inset-inline-start: -6px;
+  top: 20%;
+  height: 60%;
   width: 2px;
   background: var(--hs-magenta);
   border-radius: 2px;
 }
-.sidenav .nav-link .material-icons-round { font-size: 18px; opacity: .85; }
-/* Section label between nav groups — set via data-group on the <li>. */
+/* The template ships its own icon wrapper with margins that fight the
+   flex gap above; neutralise it so icon and label are one unit. */
+.sidenav .nav-link > div {
+  margin: 0 !important;
+  width: auto !important;
+  min-width: 18px;
+  flex-shrink: 0;
+}
+.sidenav .nav-link .material-icons,
+.sidenav .nav-link .material-icons-round { font-size: 18px; opacity: .8; }
+.sidenav .nav-link-text { margin: 0 !important; }
+
+/* Section label: same inset as the links it introduces, with real air
+   above so groups separate without needing a divider line. */
 .nav-group-label {
   font-family: var(--hs-mono);
-  font-size: 9.5px;
-  letter-spacing: .18em;
+  font-size: 10px;
+  letter-spacing: .16em;
   text-transform: uppercase;
-  color: #6A5F7C;
-  padding: 14px 22px 5px;
+  color: #7C7090;
+  padding: 0 calc(var(--hs-nav-inset) + 11px) 6px;
+  margin: 18px 0 0;
+}
+.nav-item:first-child .nav-group-label { margin-top: 4px; }
+
+/* The rail is a column: header and footer hold their place, the nav
+   scrolls between them. Before this the list simply ran past the viewport
+   and the absolutely-positioned footer sat on top of the last items, so
+   the bottom of the menu was unreachable on a short screen. */
+.sidenav {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sidenav .sidenav-header { flex: 0 0 auto; }
+.sidenav .collapse.navbar-collapse {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: none !important;
+  /* A thin rail scrollbar; the template's default is a light-theme block. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--hs-line) transparent;
+}
+.sidenav .collapse.navbar-collapse::-webkit-scrollbar { width: 6px; }
+.sidenav .collapse.navbar-collapse::-webkit-scrollbar-thumb {
+  background: var(--hs-line);
+  border-radius: 3px;
+}
+.sidenav .sidenav-footer {
+  position: static !important;
+  flex: 0 0 auto;
+  padding: 12px var(--hs-nav-inset) 16px;
+  border-top: 1px solid var(--hs-line-soft);
+  margin-top: 6px;
 }
 
 /* ── top bar ──────────────────────────────────────────────────────── */
@@ -366,9 +437,14 @@ label, .form-check-label { color: var(--hs-muted); }
 }
 .hs-wordmark-accent { color: var(--hs-magenta); }
 .hs-wordmark-sub {
-  color: var(--hs-muted);
+  color: #8D82A0;
   font-size: 11px;
-  margin: 3px 0 0;
+  line-height: 1.45;
+  margin: 6px 0 0;
+  /* Two facts on one line overflowed a 244px rail and ran under the first
+     nav item; wrapping to two lines keeps them inside the header. */
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 /* ── header status strip ──────────────────────────────────────────────

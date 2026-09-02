@@ -160,6 +160,17 @@ export const OPERATIONS: Record<string, Partial<Record<"get" | "post" | "patch" 
   },
   "/social/calendar": { get: { summary: "Slot plan per channel from cadence + best times, with gaps flagged", tag: "social", query: ["days"] } },
   "/social/analytics": { get: { summary: "Followers, reach, engagement per channel; flags configured-but-idle channels", tag: "social" } },
+  "/branding/kit": {
+    get: { summary: "Brand kit: mark, colours, per-channel photo layout, video branding sequence, plus each channel's real canvas", tag: "branding" },
+    put: { summary: "Update the brand kit — layout is stored per channel because a 9:16 story and a 1:1 post cannot share a safe area", tag: "branding", body: { wordmark: "string", logoFileId: "storage uuid", primaryColor: "#RRGGBB", photoLayout: "{channel: {anchor,scalePct,marginPct,opacity,scrim}}", videoSequence: "[{kind,seconds,text}]" } },
+  },
+  "/branding/renders": { get: { summary: "Render history with status and duration", tag: "branding", query: ["channel"] } },
+  "/branding/render/photo": {
+    post: { summary: "Compose the mark onto photos in the channel's canvas (local ffmpeg — no GPU, no quota, no network)", tag: "branding", body: { channel: "string", photoFileIds: "uuid[]" } },
+  },
+  "/branding/render/video": {
+    post: { summary: "Render a branded video from stills: intro card, pan/zoom shots carrying the mark, outro CTA — in the hotel's own order and durations", tag: "branding", body: { channel: "string", photoFileIds: "uuid[]" } },
+  },
   "/complaints": {
     get: { summary: "Complaint cases, highest reputation risk first", tag: "complaints", query: ["status"] },
     post: { summary: "Open a case from a staff-reported complaint; triage scores category, severity and reputation risk", tag: "complaints", body: { text: "string", guestId: "optional uuid" } },
@@ -218,7 +229,7 @@ export function buildOpenApiSpec(): Record<string, unknown> {
       { name: "auth" }, { name: "core" }, { name: "events" }, { name: "agents" },
       { name: "knowledge" }, { name: "tickets" }, { name: "reviews" }, { name: "guests" },
       { name: "inbox" }, { name: "workorders" }, { name: "storage" }, { name: "reputation" },
-      { name: "content" }, { name: "social" }, { name: "complaints" }, { name: "audit" }, { name: "credentials" }, { name: "platform" },
+      { name: "content" }, { name: "social" }, { name: "branding" }, { name: "complaints" }, { name: "audit" }, { name: "credentials" }, { name: "platform" },
     ],
     paths,
   };

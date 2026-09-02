@@ -32,6 +32,19 @@ import {
 import { CHANNEL_KEYS } from "../social/catalogue.js";
 import { startConnect, saveChannelCredentials, completeOauth, disconnectChannel } from "../social/connect.js";
 import {
+  getBrandKit,
+  saveBrandKit,
+  layoutFor,
+  canvasFor,
+  renderBrandedPhoto,
+  renderBrandedVideo,
+  recordRender,
+  finishRender,
+  ANCHORS,
+  CHANNEL_CANVAS,
+} from "../branding/service.js";
+import { putServerSide, readFileBytes } from "../storage/service.js";
+import {
   captureComplaint,
   ownCase,
   recordRca,
@@ -1207,6 +1220,196 @@ apiRouter.delete(
       channel,
     });
     res.status(204).end();
+  })
+);
+
+// ---- branding studio (§6-هـ content generator) -------------------------
+
+apiRouter.get(
+  "/branding/kit",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "branding.view")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const kit = await getBrandKit(req.staff!.propertyId);
+    res.json({ ...kit, canvases: CHANNEL_CANVAS, anchors: ANCHORS });
+  })
+);
+
+const PhotoLayoutSchema = z.object({
+  anchor: z.enum(ANCHORS),
+  scalePct: z.number().min(4).max(60),
+  marginPct: z.number().min(0).max(25),
+  opacity: z.number().min(0.1).max(1),
+  scrim: z.boolean(),
+});
+
+const BrandKitPatch = z.object({
+  wordmark: z.string().max(120).optional(),
+  logoFileId: z.string().uuid().nullable().optional(),
+  primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  inkColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  fontFamily: z.string().max(80).optional(),
+  photoLayout: z.record(z.string(), PhotoLayoutSchema).optional(),
+  videoSequence: z
+    .array(
+      z.object({
+        kind: z.enum(["intro", "shot", "watermark", "outro"]),
+        seconds: z.number().min(0).max(10),
+        text: z.string().max(120).optional(),
+      })
+    )
+    .max(12)
+    .optional(),
+});
+
+apiRouter.put(
+  "/branding/kit",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "branding.manage")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const patch = BrandKitPatch.parse(req.body);
+    const kit = await saveBrandKit({
+      actor: { staffId: req.staff!.staffId, name: req.staff!.name, propertyId: req.staff!.propertyId },
+      patch,
+    });
+    res.json(kit);
+  })
+);
+
+apiRouter.get(
+  "/branding/renders",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "branding.view")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const channel = typeof req.query.channel === "string" ? req.query.channel : undefined;
+    const renders = await prisma.brandRender.findMany({
+      where: { propertyId: req.staff!.propertyId, ...(channel ? { channel } : {}) },
+      orderBy: { createdAt: "desc" },
+      take: 40,
+    });
+    res.json(renders);
+  })
+);
+
+// Composes the brand mark onto supplied photos, in the channel's real
+// canvas. Runs locally with ffmpeg: no GPU pool, no quota, no network — a
+// demo never fails because someone else's free tier was busy.
+apiRouter.post(
+  "/branding/render/photo",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "branding.render")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const body = z
+      .object({ channel: z.string().min(2), photoFileIds: z.array(z.string().uuid()).min(1).max(6) })
+      .parse(req.body);
+
+    const propertyId = req.staff!.propertyId;
+    const kit = await getBrandKit(propertyId);
+    const layout = await layoutFor(propertyId, body.channel);
+    const started = Date.now();
+    const record = await recordRender({
+      propertyId,
+      channel: body.channel,
+      kind: "photo",
+      sourceFileIds: body.photoFileIds,
+      spec: { layout, canvas: canvasFor(body.channel) },
+      createdBy: req.staff!.staffId,
+    });
+
+    try {
+      const logo = kit.logoFileId ? await readFileBytes(propertyId, kit.logoFileId) : null;
+      const outputs: string[] = [];
+      for (const fileId of body.photoFileIds) {
+        const photo = await readFileBytes(propertyId, fileId);
+        if (!photo) continue;
+        const rendered = await renderBrandedPhoto({ photo, logo, channel: body.channel, layout });
+        const saved = await putServerSide({
+          propertyId,
+          kind: "post_image",
+          name: `branded-${body.channel}-${Date.now()}.jpg`,
+          mime: "image/jpeg",
+          body: rendered,
+          ownerId: req.staff!.staffId,
+        });
+        if (saved.ok) outputs.push(saved.fileId);
+      }
+      if (outputs.length === 0) throw new Error("no photo could be rendered");
+      await finishRender({ id: record.id, propertyId, outputFileId: outputs[0], durationMs: Date.now() - started });
+      res.status(201).json({ renderId: record.id, fileIds: outputs });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "render failed";
+      await finishRender({ id: record.id, propertyId, error: message, durationMs: Date.now() - started });
+      res.status(500).json({ error: message });
+    }
+  })
+);
+
+apiRouter.post(
+  "/branding/render/video",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "branding.render")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const body = z
+      .object({ channel: z.string().min(2), photoFileIds: z.array(z.string().uuid()).min(1).max(8) })
+      .parse(req.body);
+
+    const propertyId = req.staff!.propertyId;
+    const kit = await getBrandKit(propertyId);
+    const started = Date.now();
+    const record = await recordRender({
+      propertyId,
+      channel: body.channel,
+      kind: "video",
+      sourceFileIds: body.photoFileIds,
+      spec: { sequence: kit.videoSequence, canvas: canvasFor(body.channel) },
+      createdBy: req.staff!.staffId,
+    });
+
+    try {
+      const logo = kit.logoFileId ? await readFileBytes(propertyId, kit.logoFileId) : null;
+      const photos: Buffer[] = [];
+      for (const id of body.photoFileIds) {
+        const buf = await readFileBytes(propertyId, id);
+        if (buf) photos.push(buf);
+      }
+      if (photos.length === 0) throw new Error("no readable source photos");
+
+      const video = await renderBrandedVideo({
+        photos,
+        logo,
+        channel: body.channel,
+        sequence: kit.videoSequence,
+        wordmark: kit.wordmark,
+        primaryColor: kit.primaryColor,
+        inkColor: kit.inkColor,
+      });
+      const saved = await putServerSide({
+        propertyId,
+        kind: "content_media",
+        name: `branded-${body.channel}-${Date.now()}.mp4`,
+        mime: "video/mp4",
+        body: video,
+        ownerId: req.staff!.staffId,
+      });
+      if (!saved.ok) throw new Error(saved.error);
+      await finishRender({ id: record.id, propertyId, outputFileId: saved.fileId, durationMs: Date.now() - started });
+      res.status(201).json({ renderId: record.id, fileId: saved.fileId, durationMs: Date.now() - started });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "render failed";
+      await finishRender({ id: record.id, propertyId, error: message, durationMs: Date.now() - started });
+      res.status(500).json({ error: message });
+    }
   })
 );
 

@@ -25,12 +25,15 @@ describe("no guest message goes unanswered", () => {
     guestId = guest.id;
     conversationId = (await prisma.conversation.create({ data: { guestId } })).id;
 
-    // Earlier suites share this queue; failed jobs from previous runs would
-    // be retried by our worker and drown the assertions in unrelated noise.
+    // Failed jobs left by PREVIOUS runs get retried by our worker and drown
+    // the assertions in unrelated noise. Clean only those: obliterate()
+    // would also delete the in-flight jobs of suites running in parallel
+    // on this shared queue, which is exactly how this test once broke the
+    // takeover and ingest suites.
     const q = new Queue(process.env.INGEST_QUEUE_NAME ?? "inbound-messages", {
       connection: createRedisConnection(),
     });
-    await q.obliterate({ force: true });
+    await q.clean(0, 5000, "failed");
     await q.close();
   });
 

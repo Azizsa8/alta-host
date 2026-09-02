@@ -254,3 +254,53 @@ export async function sweepStorage(now = new Date()): Promise<{ purged: number; 
   }
   return { purged: toPurge.length, released: abandoned.length };
 }
+
+
+/**
+ * Writes bytes the SERVER produced (a rendered asset) straight into storage
+ * and registers them as an active file. The presigned-PUT path exists so a
+ * browser can upload without the bytes crossing the API; a render already
+ * lives in the API's memory, so round-tripping it through a signed URL
+ * would add a hop and prove nothing. Quota is still reserved the same way.
+ */
+export async function putServerSide(params: {
+  propertyId: string;
+  kind: FileKind;
+  name: string;
+  mime: string;
+  body: Buffer;
+  ownerId?: string;
+}): Promise<{ ok: true; fileId: string } | { ok: false; status: number; error: string }> {
+  const reserved = await requestUpload({
+    propertyId: params.propertyId,
+    kind: params.kind,
+    name: params.name,
+    mime: params.mime,
+    sizeBytes: params.body.length,
+    ownerId: params.ownerId,
+  });
+  if (!reserved.ok) return reserved;
+
+  const file = await prisma.storageFile.findUniqueOrThrow({ where: { id: reserved.fileId } });
+  await client().send(
+    new PutObjectCommand({
+      Bucket: BUCKET(),
+      Key: file.path,
+      Body: params.body,
+      ContentType: params.mime,
+    })
+  );
+  await confirmUpload(params.propertyId, reserved.fileId);
+  return { ok: true, fileId: reserved.fileId };
+}
+
+/** Reads a stored file back into memory — the renderer needs the source
+ *  photos and the logo as bytes. */
+export async function readFileBytes(propertyId: string, fileId: string): Promise<Buffer | null> {
+  const file = await prisma.storageFile.findUnique({ where: { id: fileId } });
+  if (!file || file.propertyId !== propertyId || file.status !== "active") return null;
+  const res = await client().send(new GetObjectCommand({ Bucket: BUCKET(), Key: file.path }));
+  const chunks: Buffer[] = [];
+  for await (const chunk of res.Body as AsyncIterable<Uint8Array>) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks);
+}

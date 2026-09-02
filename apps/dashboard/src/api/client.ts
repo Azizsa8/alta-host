@@ -313,6 +313,21 @@ export const api = {
       method: "DELETE",
       headers: { Authorization: `Bearer ${getToken()}` },
     }).then((r) => r.status === 204),
+  brandKit: () => request<BrandKitData>("/branding/kit"),
+  saveBrandKit: (p: Partial<BrandKitData>) =>
+    request<unknown>("/branding/kit", { method: "PUT", body: JSON.stringify(p) }),
+  brandRenders: (channel?: string) =>
+    request<BrandRenderRow[]>(`/branding/renders${channel ? `?channel=${channel}` : ""}`),
+  renderPhoto: (channel: string, photoFileIds: string[]) =>
+    request<{ renderId: string; fileIds: string[] }>("/branding/render/photo", {
+      method: "POST",
+      body: JSON.stringify({ channel, photoFileIds }),
+    }),
+  renderVideo: (channel: string, photoFileIds: string[]) =>
+    request<{ renderId: string; fileId: string; durationMs: number }>("/branding/render/video", {
+      method: "POST",
+      body: JSON.stringify({ channel, photoFileIds }),
+    }),
   socialCalendar: (days = 14) => request<SocialCalendar>(`/social/calendar?days=${days}`),
   socialAnalytics: () => request<SocialAnalytics>("/social/analytics"),
   complaints: (status?: string) =>
@@ -335,6 +350,45 @@ export interface SocialChannelSettings {
   tone: string;
   hashtags: string[];
   audienceNote: string;
+}
+
+export interface PhotoLayoutSpec {
+  anchor: string;
+  scalePct: number;
+  marginPct: number;
+  opacity: number;
+  scrim: boolean;
+}
+
+export interface VideoStepSpec {
+  kind: "intro" | "shot" | "watermark" | "outro";
+  seconds: number;
+  text?: string;
+}
+
+export interface BrandKitData {
+  wordmark: string;
+  logoFileId: string | null;
+  primaryColor: string;
+  secondaryColor: string;
+  inkColor: string;
+  fontFamily: string;
+  photoLayout: Record<string, PhotoLayoutSpec>;
+  videoSequence: VideoStepSpec[];
+  configured: boolean;
+  canvases: Record<string, { w: number; h: number; label: string }>;
+  anchors: string[];
+}
+
+export interface BrandRenderRow {
+  id: string;
+  channel: string;
+  kind: "photo" | "video";
+  status: string;
+  outputFileId: string | null;
+  error: string;
+  durationMs: number;
+  createdAt: string;
 }
 
 export type ConnectStart =

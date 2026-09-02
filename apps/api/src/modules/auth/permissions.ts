@@ -52,6 +52,9 @@ export const ACTIONS = [
   "complaints.view",
   "complaints.investigate", // record RCA, own a case
   "complaints.resolve", // close a case — needs a root cause and a done action
+  "branding.view",
+  "branding.manage", // brand kit, photo layout, video sequence
+  "branding.render", // actually produce an asset
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -97,6 +100,9 @@ const POLICY: Record<Action, Role[]> = {
   "complaints.view": [...MANAGERS, "marketing_manager", "reception", "maintenance_manager"],
   "complaints.investigate": [...MANAGERS, "marketing_manager", "maintenance_manager"],
   "complaints.resolve": MANAGERS,
+  "branding.view": [...MANAGERS, "marketing_manager", "reception"],
+  "branding.manage": [...MANAGERS, "marketing_manager"],
+  "branding.render": [...MANAGERS, "marketing_manager"],
 };
 
 export function can(role: string, action: Action): boolean {

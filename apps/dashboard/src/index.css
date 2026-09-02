@@ -418,3 +418,166 @@ label, .form-check-label { color: var(--hs-muted); }
 .hs-stat.is-warn::after { background: var(--hs-warn); }
 .hs-stat.is-crit::after { background: var(--hs-crit); }
 @media (max-width: 1100px) { .hs-statusbar { display: none; } }
+
+/* ── channel workspace ────────────────────────────────────────────────
+   Channel first, then what about it. Every mode means something different
+   per channel, so picking the mode first would force a channel switcher
+   inside all five. */
+.hs-channel-tile {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px;
+  background: var(--hs-surface);
+  border: 1px solid var(--hs-line);
+  border-radius: 6px;
+  text-align: start;
+  transition: border-color .2s, transform .2s, background .2s;
+}
+.hs-channel-tile:hover { border-color: var(--hs-magenta); transform: translateY(-2px); }
+.hs-channel-tile.is-off { opacity: .6; }
+.hs-channel-tile-name { font-family: var(--hs-display); font-weight: 600; font-size: 14px; color: var(--hs-ink); }
+.hs-channel-tile-meta { font-size: 11px; color: var(--hs-muted); }
+
+.hs-channel-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--hs-surface);
+  border: 1px solid var(--hs-line);
+  border-radius: 6px;
+}
+
+.hs-modebar { display: flex; gap: 8px; flex-wrap: wrap; }
+.hs-mode {
+  flex: 1 1 170px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 11px 14px;
+  background: var(--hs-surface);
+  border: 1px solid var(--hs-line);
+  border-radius: 6px;
+  text-align: start;
+  color: var(--hs-muted);
+  transition: border-color .2s, background .2s, color .2s;
+}
+.hs-mode .material-icons-round { font-size: 19px; opacity: .85; }
+.hs-mode:hover { border-color: var(--hs-line); background: var(--hs-surface-2); color: var(--hs-ink); }
+.hs-mode.is-active {
+  border-color: var(--hs-magenta);
+  background: rgba(228,23,126,.08);
+  color: var(--hs-ink);
+}
+.hs-mode-label { font-family: var(--hs-display); font-weight: 600; font-size: 13.5px; }
+.hs-mode-hint { font-size: 10.5px; color: var(--hs-muted); }
+
+/* ── generator steps ──────────────────────────────────────────────── */
+.hs-steps { display: flex; gap: 6px; flex-wrap: wrap; }
+.hs-step {
+  padding: 7px 14px;
+  border-radius: 5px;
+  border: 1px solid var(--hs-line);
+  background: transparent;
+  color: var(--hs-muted);
+  font-size: 12.5px;
+}
+.hs-step.is-active { background: var(--hs-surface-2); color: var(--hs-ink); border-color: var(--hs-magenta); }
+
+.hs-color {
+  width: 46px; height: 30px; padding: 0;
+  border: 1px solid var(--hs-line); border-radius: 5px;
+  background: var(--hs-surface-2);
+}
+.hs-brand-preview {
+  border: 1px solid var(--hs-line);
+  border-radius: 6px;
+  padding: 26px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  overflow: hidden;
+}
+.hs-brand-chip { width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0; }
+.hs-brand-rule { position: absolute; inset-inline: 0; bottom: 0; height: 3px; }
+
+/* Nine-cell anchor picker: the mark's home on the canvas. */
+.hs-anchor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 40px);
+  grid-template-rows: repeat(3, 34px);
+  gap: 4px;
+}
+.hs-anchor {
+  border: 1px solid var(--hs-line);
+  border-radius: 4px;
+  background: var(--hs-surface-2);
+  transition: background .18s, border-color .18s;
+}
+.hs-anchor:hover { border-color: var(--hs-magenta-soft); }
+.hs-anchor.is-active { background: rgba(228,23,126,.3); border-color: var(--hs-magenta); }
+
+/* Preview keeps the channel's true aspect ratio — a square preview would
+   lie about where a 9:16 story's safe area actually is. */
+.hs-canvas {
+  position: relative;
+  background: linear-gradient(135deg, #2A2140, #171221);
+  border: 1px solid var(--hs-line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.hs-canvas::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(45deg, rgba(255,255,255,.02) 0 12px, transparent 12px 24px);
+}
+.hs-canvas-mark {
+  position: absolute;
+  z-index: 2;
+  padding: 5px 8px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hs-seq-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--hs-line-soft);
+}
+.hs-seq-index {
+  width: 24px; height: 24px;
+  display: grid; place-items: center;
+  border-radius: 4px;
+  background: var(--hs-surface-2);
+  border: 1px solid var(--hs-line);
+  font-size: 11px;
+  color: var(--hs-muted);
+  flex-shrink: 0;
+}
+
+.hs-report {
+  background: var(--hs-surface-2);
+  border: 1px solid var(--hs-line);
+  border-radius: 5px;
+  padding: 12px 14px;
+  color: var(--hs-ink);
+  font-family: var(--hs-body);
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  margin-bottom: 12px;
+}
+.form-range { accent-color: var(--hs-magenta); }

@@ -556,3 +556,51 @@ model ComplaintCase {
   @@index([propertyId, severity])
   @@index([tenantId])
 }
+
+// §6-هـ branding: the visual identity the content generator applies to
+// every asset it produces. Kept per property (not per channel) because a
+// hotel has ONE brand — what varies per channel is the layout, which
+// lives in photoLayout/videoSequence keyed by channel.
+model BrandKit {
+  id            String   @id @default(uuid())
+  tenantId      String   @default("") // derived by DB trigger
+  propertyId    String   @unique
+  logoFileId    String?  // StorageFile
+  wordmark      String   @default("")
+  primaryColor  String   @default("#E4177E")
+  secondaryColor String  @default("#C9A227")
+  inkColor      String   @default("#0E0B14")
+  fontFamily    String   @default("Readex Pro")
+  // Where the mark sits on a still, per channel: anchor + margin + scale
+  // + opacity. Per channel because a 9:16 story and a 1:1 post cannot
+  // share one safe area.
+  photoLayout   Json     @default("{}")
+  // Ordered branding beats for video: intro card, watermark, outro CTA.
+  videoSequence Json     @default("[]")
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+// A render the content generator actually produced. Kept so the studio can
+// show history and so a demo can point at real output rather than a promise.
+model BrandRender {
+  id           String    @id @default(uuid())
+  tenantId     String    @default("") // derived by DB trigger
+  propertyId   String
+  channel      String
+  kind         String    // photo | video
+  status       String    @default("queued") // queued | rendering | ready | failed
+  sourceFileIds Json     @default("[]")
+  outputFileId String?   // StorageFile holding the rendered asset
+  spec         Json      @default("{}")   // the layout/sequence used
+  error        String    @default("")
+  durationMs   Int       @default(0)
+  createdBy    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([propertyId, channel, createdAt])
+  @@index([tenantId])
+}

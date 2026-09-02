@@ -16,9 +16,10 @@ import { Reputation } from "./pages/Reputation.js";
 import { ContentStudio } from "./pages/ContentStudio.js";
 import { PlatformAdmin } from "./pages/PlatformAdmin.js";
 import { SocialChannels } from "./pages/SocialChannels.js";
+import { ChannelWorkspace } from "./pages/ChannelWorkspace.js";
 import { Complaints } from "./pages/Complaints.js";
 
-type View = "ops" | "inbox" | "simulator" | "reviews" | "tickets" | "workorders" | "guests" | "storage" | "agents" | "reputation" | "content" | "social" | "complaints" | "report" | "audit" | "platform";
+type View = "ops" | "inbox" | "simulator" | "reviews" | "tickets" | "workorders" | "guests" | "storage" | "agents" | "reputation" | "content" | "social" | "workspace" | "complaints" | "report" | "audit" | "platform";
 
 // §3: alta_admin sees the platform console + audit only — never a
 // hotel's guest data. Everyone else gets the hotel screens.
@@ -34,7 +35,7 @@ const NAV_GROUPS: Array<{ label: string; keys: View[] }> = [
   { label: "المراقبة", keys: ["ops"] },
   { label: "النزلاء", keys: ["inbox", "reviews", "guests", "simulator"] },
   { label: "التشغيل", keys: ["tickets", "workorders", "storage"] },
-  { label: "النمو", keys: ["social", "content", "reputation", "complaints"] },
+  { label: "النمو", keys: ["workspace", "social", "content", "reputation", "complaints"] },
   { label: "الإدارة", keys: ["agents", "report", "audit"] },
 ];
 
@@ -49,6 +50,7 @@ const NAV_ITEMS: Array<{ key: View; label: string; icon: string }> = [
   { key: "reputation", label: "السمعة الرقمية", icon: "star" },
   { key: "content", label: "استوديو المحتوى", icon: "campaign" },
   { key: "social", label: "قنوات التواصل", icon: "share" },
+  { key: "workspace", label: "مساحة القناة", icon: "dashboard_customize" },
   { key: "complaints", label: "الشكاوى والسمعة", icon: "gavel" },
   { key: "guests", label: "النزلاء", icon: "groups" },
   { key: "storage", label: "الملفات والتخزين", icon: "folder" },
@@ -67,6 +69,7 @@ const VIEW_TITLES: Record<View, string> = {
   reputation: "السمعة الرقمية",
   content: "استوديو المحتوى",
   social: "قنوات التواصل",
+  workspace: "مساحة القناة",
   complaints: "الشكاوى والسمعة",
   guests: "النزلاء",
   storage: "الملفات والتخزين",
@@ -297,6 +300,7 @@ export default function App() {
           {view === "reputation" && <Reputation staff={staff} refreshKey={refreshKey} />}
           {view === "content" && <ContentStudio staff={staff} refreshKey={refreshKey} />}
           {view === "social" && <SocialChannels staff={staff} refreshKey={refreshKey} />}
+          {view === "workspace" && <ChannelWorkspace staff={staff} refreshKey={refreshKey} />}
           {view === "complaints" && <Complaints staff={staff} refreshKey={refreshKey} />}
           {view === "platform" && <PlatformAdmin refreshKey={refreshKey} />}
           {view === "report" && <ExecutiveReport propertyId={staff.propertyId} refreshKey={refreshKey} />}

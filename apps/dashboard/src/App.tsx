@@ -127,8 +127,9 @@ export default function App() {
   }, [staff, refreshKey]);
 
   // Live event feed: any pipeline event refreshes the visible view — SSE
-  // replaced the old 4s polling entirely. EventSource auto-reconnects and
-  // the server replays missed events via Last-Event-ID.
+  // replaced the old 4s polling entirely. eventStream() owns reconnection
+  // (the browser's own gives up after one failed retry) and resumes from
+  // the last event id, so a dropped connection never loses events.
   useEffect(() => {
     if (!staff) return;
     return eventStream(() => setRefreshKey((k) => k + 1));

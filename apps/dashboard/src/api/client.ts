@@ -308,6 +308,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(p),
     }),
+  demoConnectChannel: (channel: string, account?: string) =>
+    request<{ connected: true; demo: true; accountRef: string }>(`/social/channels/${channel}/demo-connect`, {
+      method: "POST",
+      body: JSON.stringify({ account }),
+    }),
   disconnectChannel: (channel: string) =>
     fetch(`${BASE}/social/channels/${channel}/connection`, {
       method: "DELETE",
@@ -391,9 +396,20 @@ export interface BrandRenderRow {
   createdAt: string;
 }
 
+export interface DemoOption {
+  platformAr: string;
+  suggestedAccount: string;
+  noteAr: string;
+}
+
 export type ConnectStart =
-  | { mode: "oauth"; authorizeUrl: string }
-  | { mode: "token"; fields: Array<{ key: string; labelAr: string; secret: boolean; hintAr: string }>; noteAr: string }
+  | { mode: "oauth"; authorizeUrl: string; demo?: DemoOption }
+  | {
+      mode: "token";
+      fields: Array<{ key: string; labelAr: string; secret: boolean; hintAr: string }>;
+      noteAr: string;
+      demo?: DemoOption;
+    }
   | { mode: "manual"; noteAr: string };
 
 export interface AgentCapabilities {
@@ -402,6 +418,7 @@ export interface AgentCapabilities {
   canPublish: boolean;
   canReply: boolean;
   canReadAnalytics: boolean;
+  demo: boolean;
   blockedReasonAr: string;
 }
 
@@ -419,6 +436,7 @@ export interface SocialChannelRow extends SocialChannelSettings {
   connectedAt: string | null;
   accountRef: string;
   connectionError: string;
+  demoConnection: boolean;
   connectMode: "oauth" | "token" | "manual";
   manualNoteAr: string;
   agent: AgentCapabilities;

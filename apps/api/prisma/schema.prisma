@@ -512,6 +512,11 @@ model SocialChannel {
   connectedBy    String?
   accountRef     String    @default("") // page/channel/account id at the platform
   connectionError String   @default("")
+  // A connection made in demo mode (SOCIAL_DEMO_CONNECT): the flow ran and
+  // the channel is usable in the product, but no real platform credential
+  // was ever exchanged. Kept as its own column rather than inferred from an
+  // empty vault, so every screen can say plainly which kind it is.
+  demoConnection Boolean   @default(false)
   lastSyncedAt   DateTime?
   followers      Int       @default(0)
   reach30d       Int       @default(0)

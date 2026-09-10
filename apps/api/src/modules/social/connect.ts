@@ -4,7 +4,7 @@ import { recordAudit } from "../audit/service.js";
 import { emitEvent } from "../events/bus.js";
 import { setCredential, getCredential, type CredentialKey } from "../credentials/service.js";
 import { channelSpec } from "./catalogue.js";
-import { connectionFor, oauthConfigured, credentialKeysFor, MANUAL_ONLY } from "./connections.js";
+import { connectionFor, oauthConfigured, credentialKeysFor, MANUAL_ONLY, demoConnectEnabled } from "./connections.js";
 
 type Actor = { staffId: string; name: string; propertyId: string };
 
@@ -46,10 +46,41 @@ export function verifyState(state: string): { propertyId: string; channel: strin
   }
 }
 
+/** Offered alongside the token form when demo mode is on: a sign-in the
+ *  hotel can actually complete today, clearly named as a demo. */
+export interface DemoOption {
+  platformAr: string;
+  /** A sensible default handle so the demo does not stall on typing. */
+  suggestedAccount: string;
+  noteAr: string;
+}
+
 export type ConnectStart =
-  | { mode: "oauth"; authorizeUrl: string }
-  | { mode: "token"; fields: Array<{ key: string; labelAr: string; secret: boolean; hintAr: string }>; noteAr: string }
+  | { mode: "oauth"; authorizeUrl: string; demo?: DemoOption }
+  | {
+      mode: "token";
+      fields: Array<{ key: string; labelAr: string; secret: boolean; hintAr: string }>;
+      noteAr: string;
+      demo?: DemoOption;
+    }
   | { mode: "manual"; noteAr: string };
+
+/** The demo sign-in offer for a channel, or undefined when demo mode is off. */
+function demoOptionFor(channel: string, propertyId: string): DemoOption | undefined {
+  if (!demoConnectEnabled()) return undefined;
+  const spec = channelSpec(channel);
+  if (!spec) return undefined;
+  const handle = propertyId.replace(/[^a-z0-9]+/gi, "").slice(0, 16) || "hotel";
+  return {
+    platformAr: spec.nameAr,
+    suggestedAccount: "@" + handle,
+    noteAr:
+      "وضع العرض التجريبي: تُكمل خطوات تسجيل الدخول وتصبح القناة موصولة داخل المنصة، بدون تبادل بيانات " +
+      "اعتماد حقيقية مع " +
+      spec.nameAr +
+      ". تُوسم القناة كربط تجريبي في كل شاشة.",
+  };
+}
 
 /**
  * Starts a connection. Returns what the UI should actually do — a redirect
@@ -77,7 +108,7 @@ export function startConnect(channel: string, propertyId: string): ConnectStart 
     url.searchParams.set("response_type", "code");
     url.searchParams.set("scope", (conn.scopes ?? []).join(" "));
     url.searchParams.set("state", signState(propertyId, channel));
-    return { mode: "oauth", authorizeUrl: url.toString() };
+    return { mode: "oauth", authorizeUrl: url.toString(), demo: demoOptionFor(channel, propertyId) };
   }
 
   // No developer app registered for this platform on this deployment: say
@@ -89,7 +120,75 @@ export function startConnect(channel: string, propertyId: string): ConnectStart 
       conn.mode === "oauth"
         ? "لم يُسجَّل تطبيق مطوّر لهذه المنصة على هذا التثبيت بعد، فالربط يتم برمز وصول تُنشئه من لوحة المنصة."
         : "هذه المنصة لا تستخدم OAuth — الربط برمز تُنشئه من لوحتها.",
+    demo: demoOptionFor(channel, propertyId),
   };
+}
+
+/**
+ * Completes a demo-mode connection: the channel becomes usable in the
+ * product without a real credential ever being exchanged.
+ *
+ * Three things keep this from becoming a lie:
+ *   - it refuses unless SOCIAL_DEMO_CONNECT is explicitly set, so a real
+ *     deployment cannot reach it at all;
+ *   - it writes NOTHING to the credential vault, so no platform call can
+ *     start succeeding because of it;
+ *   - it stamps demoConnection, which every screen and the audit entry
+ *     carry, so nobody can mistake it for a live account later.
+ */
+export async function demoConnect(params: {
+  actor: Actor;
+  channel: string;
+  account?: string;
+}): Promise<{ ok: true; accountRef: string } | { ok: false; status: number; error: string }> {
+  if (!demoConnectEnabled()) {
+    return { ok: false, status: 409, error: "demo connect is disabled on this deployment" };
+  }
+  const spec = channelSpec(params.channel);
+  if (!spec) return { ok: false, status: 404, error: "unknown channel" };
+  if (MANUAL_ONLY[params.channel]) {
+    // Faking a connection for a channel that has no automated surface would
+    // demo a capability that cannot exist even in production.
+    return { ok: false, status: 422, error: MANUAL_ONLY[params.channel] };
+  }
+
+  const accountRef = (params.account ?? "").trim() || `@${params.actor.propertyId}`;
+  await prisma.socialChannel.upsert({
+    where: { propertyId_channel: { propertyId: params.actor.propertyId, channel: params.channel } },
+    create: {
+      propertyId: params.actor.propertyId,
+      channel: params.channel,
+      enabled: true,
+      connected: true,
+      demoConnection: true,
+      connectedAt: new Date(),
+      connectedBy: params.actor.staffId,
+      accountRef,
+      connectionError: "",
+    },
+    update: {
+      enabled: true,
+      connected: true,
+      demoConnection: true,
+      connectedAt: new Date(),
+      connectedBy: params.actor.staffId,
+      accountRef,
+      connectionError: "",
+    },
+  });
+
+  await recordAudit({
+    actorName: params.actor.name,
+    actorId: params.actor.staffId,
+    propertyId: params.actor.propertyId,
+    action: "social.channel_connected",
+    resourceType: "SocialChannel",
+    resourceId: params.channel,
+    outcome: "success",
+    metadata: { channel: params.channel, mode: "demo", accountRef },
+  });
+  await emitEvent(params.actor.propertyId, { type: "social.connected", channel: params.channel, demo: true });
+  return { ok: true, accountRef };
 }
 
 /** Asks the platform who this token belongs to. A token that the platform
@@ -165,6 +264,8 @@ export async function saveChannelCredentials(params: {
       channel: params.channel,
       enabled: true,
       connected: true,
+      // A real credential supersedes any demo stamp left by a walkthrough.
+      demoConnection: false,
       connectedAt: new Date(),
       connectedBy: params.actor.staffId,
       accountRef: params.account ?? "",
@@ -173,6 +274,7 @@ export async function saveChannelCredentials(params: {
     update: {
       enabled: true,
       connected: true,
+      demoConnection: false,
       connectedAt: new Date(),
       connectedBy: params.actor.staffId,
       accountRef: params.account ?? "",
@@ -240,7 +342,14 @@ export async function disconnectChannel(params: { actor: Actor; channel: string 
   });
   await prisma.socialChannel.updateMany({
     where: { propertyId: params.actor.propertyId, channel: params.channel },
-    data: { connected: false, connectedAt: null, accountRef: "", autoPublish: false, connectionError: "" },
+    data: {
+      connected: false,
+      demoConnection: false,
+      connectedAt: null,
+      accountRef: "",
+      autoPublish: false,
+      connectionError: "",
+    },
   });
   await recordAudit({
     actorName: params.actor.name,

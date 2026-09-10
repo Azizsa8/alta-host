@@ -15,6 +15,7 @@ import { startStorageSweep } from "./modules/storage/sweep.js";
 import { startReviewPoll } from "./modules/reputation/poll.js";
 import { startContentScheduler } from "./modules/content/scheduler.js";
 import { isMastraOrchestrator } from "./modules/mastra/instance.js";
+import { getRedis } from "./redis.js";
 
 const app = express();
 // Deployed behind exactly one reverse proxy (Caddy, see infra/web/Caddyfile /
@@ -87,6 +88,9 @@ app.listen(port, () => {
 // deploy scales both together. Split into its own service when webhook
 // volume outgrows one process.
 startIngestWorker();
+// Open the event-bus connection now rather than on the first event, so it
+// is already up when that event arrives (publishWhenReady covers the rest).
+getRedis();
 startStorageSweep();
 startReviewPoll();
 startContentScheduler();

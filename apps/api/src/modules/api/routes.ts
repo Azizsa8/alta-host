@@ -30,7 +30,13 @@ import {
   channelAnalytics,
 } from "../social/service.js";
 import { CHANNEL_KEYS } from "../social/catalogue.js";
-import { startConnect, saveChannelCredentials, completeOauth, disconnectChannel } from "../social/connect.js";
+import {
+  startConnect,
+  saveChannelCredentials,
+  completeOauth,
+  disconnectChannel,
+  demoConnect,
+} from "../social/connect.js";
 import {
   getBrandKit,
   saveBrandKit,
@@ -1179,6 +1185,31 @@ apiRouter.post(
       return;
     }
     res.json(start);
+  })
+);
+
+// Completes the connect journey without a developer app, for pilots and
+// client demos. Gated on SOCIAL_DEMO_CONNECT and stamped as a demo
+// connection — see demoConnect() for why that stamp matters.
+apiRouter.post(
+  "/social/channels/:channel/demo-connect",
+  asyncRoute(async (req, res) => {
+    if (!can(req.staff!.role, "social.manage")) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const { channel } = z.object({ channel: z.enum(CHANNEL_KEYS as [string, ...string[]]) }).parse(req.params);
+    const body = z.object({ account: z.string().max(200).optional() }).parse(req.body ?? {});
+    const result = await demoConnect({
+      actor: { staffId: req.staff!.staffId, name: req.staff!.name, propertyId: req.staff!.propertyId },
+      channel,
+      account: body.account,
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.json({ connected: true, demo: true, accountRef: result.accountRef });
   })
 );
 

@@ -18,6 +18,7 @@ export async function listChannels(propertyId: string) {
       connectedAt: row?.connectedAt?.toISOString() ?? null,
       accountRef: row?.accountRef ?? "",
       connectionError: row?.connectionError ?? "",
+      demoConnection: row?.demoConnection ?? false,
       // How this channel can be connected AT ALL, so the button says the
       // truth before it is pressed rather than after.
       connectMode: MANUAL_ONLY[spec.key]
@@ -29,7 +30,7 @@ export async function listChannels(propertyId: string) {
           : ("manual" as const),
       manualNoteAr: MANUAL_ONLY[spec.key] ?? "",
       // What the agent may actually do on this channel right now.
-      agent: agentCapabilities(spec.key, row?.connected ?? false),
+      agent: agentCapabilities(spec.key, row?.connected ?? false, row?.demoConnection ?? false),
       enabled: row?.enabled ?? false,
       autoPublish: row?.autoPublish ?? false,
       handle: row?.handle ?? "",

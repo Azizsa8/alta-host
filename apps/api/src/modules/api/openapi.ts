@@ -155,6 +155,9 @@ export const OPERATIONS: Record<string, Partial<Record<"get" | "post" | "patch" 
   "/social/channels/{channel}/credentials": {
     post: { summary: "Store a channel token in the vault (AES-256-GCM). The platform must accept the token first — a rejected token is never stored as a working connection", tag: "social", params: ["channel"], body: { token: "write-only, never echoed", account: "page/channel id" } },
   },
+  "/social/channels/{channel}/demo-connect": {
+    post: { summary: "Complete a demo-mode connection (SOCIAL_DEMO_CONNECT only): marks the channel connected and stamps demoConnection so no screen can mistake it for a live account. Writes nothing to the vault", tag: "social", params: ["channel"], body: { account: "handle shown as the connected account" } },
+  },
   "/social/channels/{channel}/connection": {
     delete: { summary: "Disconnect: removes the vault entry and drops the channel's claimed capabilities", tag: "social", params: ["channel"] },
   },

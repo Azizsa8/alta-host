@@ -31,7 +31,7 @@ export type AltaEventBody =
   | { type: "complaint.captured"; caseId: string; category: string; severity: string; reputationRisk: number }
   | { type: "complaint.reputation_risk"; caseId: string; reputationRisk: number; signals: string[]; preview: string }
   | { type: "complaint.status"; caseId: string; status: string }
-  | { type: "social.connected"; channel: string }
+  | { type: "social.connected"; channel: string; demo?: boolean }
   | { type: "brand.render"; renderId: string; status: string };
 
 export type AltaEventType = AltaEventBody["type"];

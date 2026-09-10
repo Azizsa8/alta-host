@@ -131,6 +131,22 @@ export function connectionFor(channel: string): ConnectionSpec | null {
   return CONNECTIONS[channel] ?? null;
 }
 
+/**
+ * Demo mode: lets the connect flow complete without a developer app, so a
+ * pilot or a client demo can walk the whole journey — sign in, connect,
+ * watch the agent act — instead of dead-ending at a token box for a token
+ * nobody has yet.
+ *
+ * It is OFF unless SOCIAL_DEMO_CONNECT is explicitly set, and a channel
+ * connected this way is stamped demoConnection=true and labelled as such
+ * everywhere it appears. It never invents a credential, so nothing here can
+ * make a real platform call succeed that would otherwise have failed.
+ */
+export function demoConnectEnabled(): boolean {
+  const v = (process.env.SOCIAL_DEMO_CONNECT ?? "").toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+
 /** True only when this deployment actually registered a developer app. */
 export function oauthConfigured(spec: ConnectionSpec): boolean {
   if (spec.mode !== "oauth") return false;
@@ -154,11 +170,12 @@ export const SOCIAL_CREDENTIAL_KEYS = CHANNEL_CATALOGUE.flatMap((c) => {
  * TikTok still cannot be published to, and saying otherwise would have the
  * agent report success for a post that never existed.
  */
-export function agentCapabilities(channel: string, connected: boolean) {
+export function agentCapabilities(channel: string, connected: boolean, demo = false) {
   const spec = channelSpec(channel);
   const publishable = spec?.publish === "api";
   const replyable = spec?.publish === "reply";
   return {
+    demo,
     canDraft: true, // drafting never needs a connection
     canSchedule: true,
     canPublish: connected && publishable,
@@ -168,7 +185,9 @@ export function agentCapabilities(channel: string, connected: boolean) {
     // leaving the user to guess.
     blockedReasonAr: connected
       ? publishable || replyable
-        ? ""
+        ? demo
+          ? "ربط عرض تجريبي — الوكيل ينفّذ داخل المنصة، ولا يصل إلى حساب حقيقي."
+          : ""
         : (MANUAL_ONLY[channel] ?? "هذه القناة لا تتيح إجراءً آليًا.")
       : "القناة غير موصولة بعد.",
   };

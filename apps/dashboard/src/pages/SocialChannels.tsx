@@ -74,6 +74,12 @@ export function SocialChannels({ staff, refreshKey }: { staff: Staff; refreshKey
               setConnecting(null);
             })
           }
+          onDemoConnect={(account) =>
+            act(async () => {
+              await api.demoConnectChannel(connecting.channel.key, account);
+              setConnecting(null);
+            })
+          }
         />
       )}
       <div className="col-12 mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -131,7 +137,16 @@ export function SocialChannels({ staff, refreshKey }: { staff: Staff; refreshKey
                           <div className="d-flex align-items-center gap-2 mt-2 flex-wrap">
                             {c.connected ? (
                               <>
-                                <span className="badge badge-sm bg-gradient-success">● موصولة</span>
+                                {c.demoConnection ? (
+                                  <span
+                                    className="badge badge-sm bg-gradient-warning"
+                                    title="ربط عرض تجريبي — لم تُتبادل بيانات اعتماد حقيقية مع المنصة"
+                                  >
+                                    ● موصولة (عرض تجريبي)
+                                  </span>
+                                ) : (
+                                  <span className="badge badge-sm bg-gradient-success">● موصولة</span>
+                                )}
                                 {canManage && (
                                   <button
                                     className="btn btn-link text-danger text-xs p-0 mb-0"
@@ -432,21 +447,113 @@ function ChannelPanel({
  *  ACTUALLY be connected — a redirect when a developer app is registered,
  *  a credential form when it is not, and an honest explanation when the
  *  platform has no automated surface at all. */
+/** The demo sign-in: the same three beats a real platform login has — who
+ *  you are signing in as, what the hotel is granting, then confirm — so the
+ *  walkthrough shows the actual journey. Labelled a demo throughout, because
+ *  a connection screen that hides which kind it is, is the one thing here
+ *  that would genuinely mislead. */
+function DemoSignIn({
+  channel,
+  demo,
+  busy,
+  onConnect,
+}: {
+  channel: SocialChannelRow;
+  demo: NonNullable<Extract<ConnectStart, { mode: "token" }>["demo"]>;
+  busy: boolean;
+  onConnect: (account: string) => void;
+}) {
+  const [account, setAccount] = useState(demo.suggestedAccount);
+  const [step, setStep] = useState<"signin" | "grant">("signin");
+
+  const grants = [
+    `النشر باسم ${account || demo.suggestedAccount}`,
+    "قراءة التفاعل والمتابعين للتحليلات",
+    "قراءة التعليقات والرسائل الواردة والرد عليها",
+  ];
+
+  return (
+    <div className="border border-1 rounded-3 p-3" style={{ borderColor: "var(--hs-line-soft)" }}>
+      <div className="d-flex align-items-center gap-2 mb-3">
+        <ChannelLogo channel={channel.key} size={28} />
+        <div className="flex-grow-1">
+          <p className="text-sm font-weight-bold mb-0">تسجيل الدخول إلى {demo.platformAr}</p>
+          <p className="text-xxs text-secondary mb-0">{step === "signin" ? "الخطوة ١ من ٢" : "الخطوة ٢ من ٢"}</p>
+        </div>
+        <span className="badge badge-sm bg-gradient-warning">عرض تجريبي</span>
+      </div>
+
+      {step === "signin" ? (
+        <>
+          <label className="text-xs">الحساب أو الصفحة</label>
+          <input
+            className="form-control form-control-sm mb-2"
+            dir="ltr"
+            value={account}
+            onChange={(e) => setAccount(e.target.value)}
+            placeholder={demo.suggestedAccount}
+          />
+          <button
+            className="btn bg-gradient-primary w-100 mb-0"
+            disabled={busy || account.trim().length < 2}
+            onClick={() => setStep("grant")}
+          >
+            متابعة
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="text-xs mb-2">
+            سيمنح <span className="font-weight-bold">{account}</span> منصة HostOps الصلاحيات التالية:
+          </p>
+          <ul className="text-xs ps-3 mb-3">
+            {grants.map((g) => (
+              <li key={g} className="mb-1">
+                {g}
+              </li>
+            ))}
+          </ul>
+          <div className="d-flex gap-2">
+            <button className="btn btn-outline-secondary btn-sm mb-0" disabled={busy} onClick={() => setStep("signin")}>
+              رجوع
+            </button>
+            <button
+              className="btn bg-gradient-primary flex-grow-1 mb-0"
+              disabled={busy}
+              onClick={() => onConnect(account.trim())}
+            >
+              الموافقة والربط
+            </button>
+          </div>
+        </>
+      )}
+      <p className="text-xxs text-secondary mb-0 mt-2">{demo.noteAr}</p>
+    </div>
+  );
+}
+
 function ConnectDialog({
   channel,
   start,
   busy,
   onClose,
   onSave,
+  onDemoConnect,
 }: {
   channel: SocialChannelRow;
   start: ConnectStart;
   busy: boolean;
   onClose: () => void;
   onSave: (token: string, account: string) => void;
+  onDemoConnect: (account: string) => void;
 }) {
   const [token, setToken] = useState("");
   const [account, setAccount] = useState("");
+  const demo = start.mode === "manual" ? undefined : start.demo;
+  // With no developer app registered, the token box is the path nobody can
+  // walk today — so the demo sign-in leads and the token box sits behind a
+  // disclosure for whoever actually has a token.
+  const [showToken, setShowToken] = useState(false);
 
   return (
     <div
@@ -480,7 +587,19 @@ function ConnectDialog({
             </>
           )}
 
-          {start.mode === "token" && (
+          {demo && (
+            <div className="mb-3">
+              <DemoSignIn channel={channel} demo={demo} busy={busy} onConnect={onDemoConnect} />
+            </div>
+          )}
+
+          {start.mode === "token" && demo && !showToken && (
+            <button className="btn btn-link text-xs p-0 mb-0" onClick={() => setShowToken(true)}>
+              لديك رمز وصول حقيقي من {channel.nameAr}؟ اربط به بدلًا من ذلك
+            </button>
+          )}
+
+          {start.mode === "token" && (!demo || showToken) && (
             <>
               <div className="alert alert-info text-white text-xs py-2">{start.noteAr}</div>
               {start.fields.map((f) => (

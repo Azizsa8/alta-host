@@ -9,3 +9,4 @@ apps/api/prisma/dev.db-journal
 .DS_Store
 .vercel
 .env*
+.codex/

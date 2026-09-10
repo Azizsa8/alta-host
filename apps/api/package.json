@@ -15,7 +15,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:reset-demo": "tsx scripts/reset-demo.ts",
-    "db:demo-history": "tsx scripts/seed-demo-history.ts"
+    "db:demo-history": "tsx scripts/seed-demo-history.ts",
+    "db:demo-full": "tsx prisma/demo-seed.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1116.0",

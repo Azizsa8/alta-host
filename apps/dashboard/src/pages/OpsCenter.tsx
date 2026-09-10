@@ -13,7 +13,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { api, eventStream, type AgentDefinition, type LiveEvent } from "../api/client.js";
+import { api, eventStream, type AgentDefinition, type LiveEvent, type StreamStatus } from "../api/client.js";
 
 /* ===========================================================
    The live fleet view. Agent nodes come from the backend
@@ -214,6 +214,9 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<AgentDefinition | null>(null);
   const [live, setLive] = useState(true);
+  // The CONNECTION's state, separate from live-vs-replay above: the badge
+  // must not claim "live" over a stream that has dropped.
+  const [stream, setStream] = useState<StreamStatus>("live");
   const timers = useRef<Record<string, number>>({});
 
   // ---- incident replay ----------------------------------------------
@@ -247,11 +250,14 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
 
   useEffect(() => {
     if (!live) return;
-    return eventStream((evt) => {
-      setFeed((prev) => [evt, ...prev].slice(0, 120));
-      const target = nodeForEvent(evt);
-      if (target) pulse(target.id, target.state);
-    });
+    return eventStream(
+      (evt) => {
+        setFeed((prev) => [evt, ...prev].slice(0, 120));
+        const target = nodeForEvent(evt);
+        if (target) pulse(target.id, target.state);
+      },
+      setStream
+    );
   }, [live, pulse]);
 
   /** Clears every node back to idle — used when switching modes so a
@@ -499,10 +505,13 @@ export function OpsCenter({ propertyId }: { propertyId: string }) {
             </div>
             <div className="d-flex gap-2">
               <button
-                className={`btn btn-sm mb-0 ${live ? "bg-gradient-primary" : "btn-outline-secondary"}`}
+                className={`btn btn-sm mb-0 ${
+                  !live ? "btn-outline-secondary" : stream === "live" ? "bg-gradient-primary" : "bg-gradient-warning"
+                }`}
                 onClick={() => (live ? setLive(false) : backToLive())}
+                title={live && stream !== "live" ? "انقطع البث — نعيد الاتصال تلقائيًا ولن تفوتك أي أحداث" : undefined}
               >
-                {live ? "● مباشر" : "عودة للبث"}
+                {!live ? "عودة للبث" : stream === "live" ? "● مباشر" : "↻ إعادة الاتصال…"}
               </button>
               <button className="btn btn-sm btn-outline-dark mb-0" onClick={startReplay}>
                 إعادة تشغيل الأحداث

@@ -169,18 +169,127 @@ export interface LiveEvent {
 /** Opens the authenticated SSE feed. EventSource reconnects automatically
  *  and resends Last-Event-ID, so missed events replay server-side. The
  *  JWT rides as ?token= because EventSource can't set headers. */
-export function eventStream(onEvent: (evt: LiveEvent) => void): () => void {
-  const token = getToken();
-  if (!token) return () => {};
-  const source = new EventSource(`${BASE}/events/stream?token=${encodeURIComponent(token)}`);
-  source.onmessage = (msg) => {
-    try {
-      onEvent(JSON.parse(msg.data) as LiveEvent);
-    } catch {
-      /* ignore malformed frames */
-    }
+export type StreamStatus = "live" | "reconnecting";
+
+/**
+ * The live feed, made self-healing.
+ *
+ * The browser's own EventSource reconnect is not enough: when a reconnect
+ * ATTEMPT itself fails — a Wi-Fi hop, a laptop waking, a proxy resetting an
+ * HTTP/2 stream — the spec moves it to CLOSED and it never tries again. The
+ * Ops Center then freezes silently while still claiming to be live, which is
+ * exactly what happened on the Railway demo.
+ *
+ * So this owns reconnection instead: backoff on failure, a fresh token each
+ * attempt, resume from the last event id so nothing is missed, a watchdog
+ * for half-open connections that never raise an error, and an immediate
+ * retry when the network comes back or the tab is looked at again.
+ */
+export function eventStream(
+  onEvent: (evt: LiveEvent) => void,
+  onStatus?: (status: StreamStatus) => void
+): () => void {
+  let source: EventSource | null = null;
+  let lastEventId = "";
+  let attempt = 0;
+  let stopped = false;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastHeard = Date.now();
+  let status: StreamStatus | null = null;
+
+  // The server heartbeats every 15s; three missed beats means the
+  // connection is dead even if the browser has not noticed.
+  const STALE_MS = 45_000;
+
+  const report = (next: StreamStatus) => {
+    if (next === status) return;
+    status = next;
+    onStatus?.(next);
   };
-  return () => source.close();
+
+  const connect = () => {
+    if (stopped) return;
+    const token = getToken();
+    if (!token) return; // logged out — onUnauthorized handles the rest
+    source?.close();
+
+    const params = new URLSearchParams({ token });
+    // A fresh EventSource cannot send Last-Event-ID, so the cursor rides
+    // in the query and the server replays whatever was missed.
+    if (lastEventId) params.set("lastEventId", lastEventId);
+    const es = new EventSource(`${BASE}/events/stream?${params.toString()}`);
+    source = es;
+    lastHeard = Date.now();
+
+    es.onopen = () => {
+      attempt = 0;
+      lastHeard = Date.now();
+      report("live");
+    };
+    es.onmessage = (msg) => {
+      lastHeard = Date.now();
+      if (msg.lastEventId) lastEventId = msg.lastEventId;
+      try {
+        onEvent(JSON.parse(msg.data) as LiveEvent);
+      } catch {
+        /* ignore malformed frames */
+      }
+    };
+    // Heartbeats arrive as a named event so they keep the watchdog fed
+    // without reaching onEvent — a refresh every 15s would thrash the UI.
+    es.addEventListener("ping", () => {
+      lastHeard = Date.now();
+    });
+    es.onerror = () => {
+      report("reconnecting");
+      // While CONNECTING the browser is still retrying on its own; only a
+      // CLOSED source has given up, and that is the one to replace.
+      if (es.readyState === EventSource.CLOSED) scheduleReconnect();
+    };
+  };
+
+  const scheduleReconnect = () => {
+    if (stopped || retryTimer) return;
+    const delay = Math.min(1000 * 2 ** attempt, 15_000);
+    attempt += 1;
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      connect();
+    }, delay);
+  };
+
+  const reconnectNow = () => {
+    if (stopped) return;
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+    attempt = 0;
+    report("reconnecting");
+    connect();
+  };
+
+  const watchdog = setInterval(() => {
+    if (Date.now() - lastHeard > STALE_MS) reconnectNow();
+  }, 10_000);
+
+  const onOnline = () => reconnectNow();
+  const onVisible = () => {
+    if (document.visibilityState === "visible" && Date.now() - lastHeard > STALE_MS) reconnectNow();
+  };
+  window.addEventListener("online", onOnline);
+  document.addEventListener("visibilitychange", onVisible);
+
+  connect();
+
+  return () => {
+    stopped = true;
+    clearInterval(watchdog);
+    if (retryTimer) clearTimeout(retryTimer);
+    window.removeEventListener("online", onOnline);
+    document.removeEventListener("visibilitychange", onVisible);
+    source?.close();
+  };
 }
 
 export const api = {
